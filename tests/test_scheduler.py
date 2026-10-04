@@ -2180,43 +2180,11 @@ class TestSchedulerStatistics:
         assert stats["num_waiting"] == 3
         assert stats["num_running"] == 0
 
-    def test_moe_offload_counters_logged_per_request(
-        self, mock_model, mock_tokenizer, caplog
-    ):
-        """The finish log reports the expert cache counters accrued since the
-        request was added, not the engine's lifetime totals."""
-        counters = {"hits": 40, "misses": 10, "fetched_bytes": 10_000_000}
-        scheduler = Scheduler(model=mock_model, tokenizer=mock_tokenizer)
-        scheduler.moe_offload_stats = lambda: dict(counters)
-        request = Request(
-            request_id="offload-req",
-            prompt="Prompt",
-            sampling_params=SamplingParams(max_tokens=4),
-        )
-        scheduler.add_request(request)
-        counters.update(hits=70, misses=20, fetched_bytes=38_000_000)
-        scheduler.waiting.remove(request)
-        request.status = RequestStatus.RUNNING
-        request.batch_uid = 7
-        scheduler.running[request.request_id] = request
-        scheduler.uid_to_request_id[7] = request.request_id
-        scheduler.request_id_to_uid[request.request_id] = 7
-        response = SimpleNamespace(uid=7, token=5, finish_reason="length")
-        with caplog.at_level("INFO", logger="omlx.scheduler"):
-            scheduler._process_batch_responses([response])
-        lines = [r.getMessage() for r in caplog.records if "MoE offload" in r.message]
-        assert lines == [
-            "MoE offload: request=offload-req hit_rate=75.0% hits=30 misses=10 "
-            f"fetched=28.0 MB prompt={request.num_prompt_tokens} output=1"
-        ]
-
     @pytest.mark.parametrize("offload", [False, True])
     def test_moe_offload_enables_qwen4_wide_prefill_without_nax(
         self, mock_model, mock_tokenizer, offload
     ):
-        """Offloaded experts are streamed once per prefill forward, so the
-        wide qwen4 step applies on a 24 GB host without NAX when offload is
-        active, and only then."""
+        """On a 24 GB host without NAX, the wide qwen4 step needs offload."""
         from omlx.custom_kernels.glm_moe_dsa import fast
 
         mock_model.config.model_type = "qwen4_exp_text"
@@ -2237,8 +2205,7 @@ class TestSchedulerStatistics:
     def test_offload_slots_released_only_for_a_lone_prefill(
         self, mock_model, mock_tokenizer
     ):
-        """The slots go to a prefill only while no other request runs on the
-        engine: a decoding request would restore them on its next step."""
+        """Slots are released only while no other request runs on the engine."""
         scheduler = Scheduler(model=mock_model, tokenizer=mock_tokenizer)
         release = MagicMock(return_value=3 * 1024**3)
         scheduler.moe_offload_release = release

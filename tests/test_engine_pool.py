@@ -2908,10 +2908,8 @@ class TestEnginePoolPrefillEviction:
 
     @pytest.mark.asyncio
     async def test_prefill_releases_offload_slots_before_ane_banks(self):
-        """With MoE expert offload, the requesting model's slot memory is the
-        rung after the pooled reclaim. Releasing it on the engine thread makes
-        room for the chunk, the released bytes leave the model's admitted size
-        too, and the ANE banks are left alone."""
+        """Offload slots are released after the pooled reclaim, on the engine
+        thread, and their bytes leave the admitted size; ANE banks stay."""
         gb = 1024**3
         pool = _make_pool(ceiling=0)
         phys = [45 * gb]

@@ -2705,10 +2705,7 @@ class EnginePool:
                         continue
                     if not slots_release_attempted:
                         # Shrink the requesting model's MoE offload caches to
-                        # their top-k floor. Its prefill streams almost every
-                        # expert anyway, and each cache restores itself at the
-                        # next decode step. Nothing released (no offload, or
-                        # other requests running) goes straight to the next rung.
+                        # their top-k floor; nothing released skips to the next rung.
                         slots_release_attempted = True
                         slots_freed = await self._release_offload_slots_for_headroom(
                             exclude_model_id, request_id
@@ -2842,13 +2839,7 @@ class EnginePool:
     async def _release_offload_slots_for_headroom(
         self, model_id: str, request_id: str
     ) -> int:
-        """Release the requesting model's MoE offload slots; report bytes.
-
-        Runs ``Scheduler.release_moe_offload_slots`` on the engine's own MLX
-        thread, which also clears the pooled buffers the slots fall into.
-        Models without offload, or with other requests running, release
-        nothing.
-        """
+        """Release the model's MoE offload slots on its MLX thread; return the bytes."""
         entry = self._entries.get(model_id)
         engine = entry.engine if entry is not None else None
         core = (

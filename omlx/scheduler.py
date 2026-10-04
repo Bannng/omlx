@@ -5667,12 +5667,9 @@ class Scheduler:
             )
 
     def release_moe_offload_slots(self, request_id: str) -> int:
-        """Give the offload slot memory to ``request_id``'s prefill.
+        """Release the offload slots for ``request_id``'s prefill; return the bytes.
 
-        Runs on this engine's MLX thread from the prefill headroom ladder.
-        Skipped while another request runs here: its next decode step would
-        restore the slots right away. Returns the slot bytes released.
-        """
+        Skipped while another request runs, whose next decode would restore them."""
         if self.moe_offload_release is None or any(
             rid != request_id for rid in self.running
         ):
@@ -10047,9 +10044,7 @@ class Scheduler:
     def _log_moe_offload_stats(self, request: Request) -> None:
         """Log the expert cache counters accrued while ``request`` ran.
 
-        The counters belong to the engine, so requests that run at the same
-        time share them.
-        """
+        The counters are per engine, so concurrent requests share them."""
         start, now = request.moe_offload_start, self.moe_offload_stats()
         hits = now["hits"] - start["hits"]
         misses = now["misses"] - start["misses"]

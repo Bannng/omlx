@@ -351,11 +351,7 @@ def _gpu_keepalive() -> _GpuKeepalive:
 
 
 def _drain(pending: dict) -> None:
-    """Cancel or finish reads nobody will install.
-
-    Finishing them keeps the store's shard descriptors open until every read
-    that uses them has returned.
-    """
+    """Cancel or finish unused reads, so no read outlives the shard descriptors."""
     futures = [f for group in pending.values() for _, _, _, f in group]
     for future in futures:
         future.cancel()
@@ -366,11 +362,8 @@ def _drain(pending: dict) -> None:
 class ExpertCache:
     """Contiguous resident slots over one layer's experts.
 
-    A miss evicts the resident expert with the lowest decayed routing count:
-    every routed occurrence adds 1, and all counts are multiplied by
-    ``_SCORE_DECAY`` every ``_SCORE_DECAY_EVERY`` calls. Replayed routing
-    traces of Qwen3.8-Flash-Next miss 5-7% less often than with LRU at
-    10-25% residency.
+    A miss evicts the expert with the lowest decayed routing count (+1 per
+    route, x``_SCORE_DECAY`` every ``_SCORE_DECAY_EVERY`` calls).
 
     Holds no reference to the wrapped module's expert tensors — only the
     resident slots and the store view. That is the difference between saving
@@ -425,7 +418,7 @@ class ExpertCache:
             ]
             for name, specs in self._slot_specs.items()
         }
-        self.slot_of: dict[int, int] = {}  # expert id -> slot
+        self.slot_of: dict[int, int] = {}  # Expert id -> slot
         self.slot_expert = np.full(capacity, -1, dtype=np.int64)
         self.free = list(range(capacity))
         self.map = mx.full((self.n_experts,), -1, dtype=mx.int32)
@@ -456,12 +449,7 @@ class ExpertCache:
         return out
 
     def _submit(self, pool, e: int) -> list:
-        """Start reading expert ``e``, one task per tensor.
-
-        Per-tensor tasks keep one expert's reads parallel; decode waits on a
-        few misses per layer, and reading each expert on one thread measured
-        10-15% slower decode with experts on the SSD.
-        """
+        """Start reading expert ``e``; a task per tensor keeps its reads parallel."""
         return [
             (name, field, plan, pool.submit(CheckpointExpertStore.read, plan))
             for name, field, plan in self._plans(e)
@@ -511,33 +499,18 @@ class ExpertCache:
         return slot
 
     def ensure(self, idx: mx.array) -> None:
-        """Make every expert in ``idx`` resident.
+        """Make every expert in ``idx`` resident; misses never evict the call's experts.
 
-        The call's whole working set is protected from eviction. The misses'
-        reads start on the IO pool, at most
-        ``OMLX_MOE_OFFLOAD_IO_BATCH`` experts in flight, and the serial
-        install loop takes bytes from the pipeline instead of reading them
-        itself. Every mutation (``slot_of``, ``free``, ``map``, the counters,
-        the slots) happens on the calling thread in miss order, so victims,
-        hit/miss counts and resident bytes are identical to the serial path. Concurrent ``ensure`` calls on one cache stay
-        unsupported.
-
-        The ``.tolist()`` is a device->host readback and therefore a sync per
-        MoE layer per step. Removing it needs prefetch (resolve layer L+1's
-        residency during layer L's compute).
+        Reads run on the IO pool; slot writes and eviction stay on this thread.
         """
         if self.warm:  # nothing can miss; skip it
             return
         self._ensure_ids(idx.reshape(-1).tolist())
 
     def _read_ahead(self, ids, limit: int) -> dict:
-        """Start the reads of the first ``limit`` misses in ``ids``.
+        """Start the first ``limit`` misses' reads without touching cache state.
 
-        Touches no cache state, so it may run while a gather over the slots is
-        still pending. Pass the result to :meth:`_ensure_ids` as ``pending``
-        before the cache changes; it then installs these reads instead of
-        issuing its own.
-        """
+        Pass the result to :meth:`_ensure_ids` as ``pending``."""
         pool = _io_pool()
         out: dict[int, list] = {}
         if pool is None:
@@ -782,9 +755,8 @@ class OffloadSwitchGLU(nn.Module):
         the resident model would choose for the whole call (sorted at or
         above the stock threshold, else unsorted), and the outputs are put
         back in route order once at the end. Each chunk is evaluated before
-        the next is built, which bounds the prefill transient. The reads of
-        the next chunk's first misses start before that eval, so they overlap
-        this chunk's GPU work; their slot writes still wait for it.
+        the next is built, which bounds the prefill transient. The next
+        chunk's first reads start before that eval; their slot writes wait.
         """
         c = self.cache
         d_model = flat_x.shape[-1]
@@ -833,7 +805,6 @@ class OffloadSwitchGLU(nn.Module):
                     o = _scatter_unsort(o, inv, (padded_routes, 1))
                 o = o.squeeze(-2)[:n_routes, 0, :]
                 if n + 1 < len(chunks):
-                    # Read the next chunk's first misses while this one computes.
                     s1, e1 = chunks[n + 1]
                     ahead = c._read_ahead(
                         np.unique(sorted_ids[s1:e1]).tolist(), _io_batch()
@@ -858,7 +829,7 @@ class OffloadSwitchGLU(nn.Module):
         flat_i = indices.reshape(-1, indices.shape[-1])
         n_tok, k = flat_i.shape
         if c.capacity < c.full_capacity and n_tok * k <= c.full_capacity:
-            c.restore_slots()  # the first decode-sized call after a release
+            c.restore_slots()  # The first decode-sized call after a release
         if k > c.capacity:
             raise ValueError("Expert cache capacity is smaller than routing top-k")
         if n_tok * k <= c.capacity or n_tok == 1:
@@ -1296,12 +1267,9 @@ def moe_offload_caches(model) -> list:
 
 
 def release_moe_offload_slots(caches) -> int:
-    """Shrink every cache to its floor; return the slot bytes given up.
+    """Shrink every cache to its floor for a prefill; return the bytes given up.
 
-    For a long prefill short of memory: expert-major prefill chunks stream
-    almost every expert anyway, so the slots' memory buys more as a wider
-    chunk. Each cache restores itself at its next decode-sized call.
-    """
+    Expert-major prefill streams almost every expert anyway; decode restores them."""
     return sum(c.release_slots() for c in caches if hasattr(c, "release_slots"))
 
 
