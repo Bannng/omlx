@@ -34,7 +34,9 @@ if HAS_MLX:
         _shutdown_io_pool,
         apply_moe_expert_offload,
         estimate_offload_admission_bytes,
+        moe_offload_caches,
         moe_offload_stats,
+        release_moe_offload_slots,
     )
 
 # toy geometry: E large enough that a 25% fraction clears the capacity floor
@@ -265,6 +267,31 @@ class TestApplyAndForward:
         got_below = model(*below)
         mx.eval(got_below)
         assert bool(mx.array_equal(ref_below, got_below))
+
+    def test_released_slots_serve_prefill_and_return_on_decode(self, tmp_path):
+        """Releasing the slots shrinks each cache to its top-k floor. An
+        over-capacity prefill still runs on the floor (in more expert-major
+        chunks), and the next decode-sized call restores the full capacity."""
+        model, _ = self._wrapped_model(tmp_path, n_layers=1)
+        prefill = (mx.random.normal((2, 60, D)), _ri(2, 60, K))
+        decode = (mx.random.normal((1, 1, D)), _ri(1, 1, K))
+        ref_prefill, ref_decode = model(*prefill), model(*decode)
+        mx.eval(ref_prefill, ref_decode)
+        apply_moe_expert_offload(model, tmp_path, 0.5)
+        cache = model.layers[0].experts.switch_glu.cache
+        full = cache.capacity
+        assert cache.floor < full
+        freed = release_moe_offload_slots(moe_offload_caches(model))
+        assert freed == (full - cache.floor) * cache.expert_bytes
+        assert cache.capacity == cache.floor
+        got = model(*prefill)
+        mx.eval(got)
+        assert cache.capacity == cache.floor
+        assert mx.allclose(got, ref_prefill, rtol=1e-4, atol=1e-5).item()
+        got = model(*decode)
+        mx.eval(got)
+        assert cache.capacity == full
+        assert bool(mx.array_equal(got, ref_decode))
 
     def test_prefill_padding_preserves_small_chunk_kernel(self, tmp_path):
         glu = _make_glu(seed=42, d=128, inter=128)
@@ -680,8 +707,8 @@ class TestParallelFetch:
         glu = _make_glu(seed=4)
         _save_checkpoint(tmp_path, _glu_tensors(glu, "layers.0.experts.switch_glu"))
         mx.random.seed(11)
-        # 12 indices per call over 8 slots: every call evicts, repeatedly
-        seq = [_ri(6, K) for _ in range(12)]
+        # up to 8 distinct experts per call over 8 slots: calls evict repeatedly
+        seq = [_ri(4, K) for _ in range(12)]
 
         def run(workers):
             _, cache = self._wrap(tmp_path, glu, workers, monkeypatch)
@@ -695,6 +722,58 @@ class TestParallelFetch:
         assert serial.free == parallel.free
         assert (serial.hits, serial.misses) == (parallel.hits, parallel.misses)
         assert serial.misses > serial.capacity
+
+    @pytest.mark.parametrize("workers", ["1", "4"])
+    def test_miss_never_evicts_a_hit_of_the_same_call(
+        self, tmp_path, monkeypatch, workers
+    ):
+        """A miss evicts the lowest-count expert outside the call's routes. A
+        hit with the lowest count stays resident instead of being evicted by
+        the call's own miss, which would leave its route without a slot."""
+        glu = _make_glu(seed=16)
+        _save_checkpoint(tmp_path, _glu_tensors(glu, "layers.0.experts.switch_glu"))
+        _, cache = self._wrap(tmp_path, glu, workers, monkeypatch)
+        assert cache.capacity == 8
+        cache.ensure(mx.arange(8, 16))
+        for _ in range(2):  # expert 8 keeps the lowest count after the next call
+            cache.ensure(mx.arange(9, 16))
+        read = CheckpointExpertStore.read
+        reads = []
+
+        def record(plan):
+            reads.append(plan)
+            return read(plan)
+
+        monkeypatch.setattr(CheckpointExpertStore, "read", staticmethod(record))
+        hits, misses = cache.hits, cache.misses
+        cache.ensure(mx.array([0, 8]))
+        assert (cache.hits - hits, cache.misses - misses) == (1, 1)
+        assert 8 in cache.slot_of and 0 in cache.slot_of
+        assert len(reads) == 9  # expert 0 only: three projections x three fields
+        assert cache.fetched_bytes == 9 * cache.expert_bytes
+
+    def test_frequent_expert_outlives_one_off_misses(self, tmp_path, monkeypatch):
+        """Eviction follows decayed routing counts: an expert routed every
+        third step stays resident while each gap brings more one-off experts
+        than there are slots, which pushes it out of an LRU cache."""
+        glu = _make_glu(seed=19)
+        _save_checkpoint(tmp_path, _glu_tensors(glu, "layers.0.experts.switch_glu"))
+        _, cache = self._wrap(tmp_path, glu, "4", monkeypatch)
+        assert cache.capacity == 8
+        others = iter(list(range(1, E)) * 4)
+        for step in range(30):
+            ids = [0] if step % 3 == 0 else []
+            ids += [next(others) for _ in range(3)]
+            cache.ensure(mx.array(ids))
+        assert 0 in cache.slot_of  # last routed 9 one-off experts ago
+
+    def test_ensure_rejects_more_routes_than_slots(self, tmp_path, monkeypatch):
+        glu = _make_glu(seed=17)
+        _save_checkpoint(tmp_path, _glu_tensors(glu, "layers.0.experts.switch_glu"))
+        _, cache = self._wrap(tmp_path, glu, "4", monkeypatch)
+        with pytest.raises(ValueError, match="capacity"):
+            cache.ensure(mx.arange(cache.capacity + 1))
+        assert not cache.slot_of and cache.misses == 0
 
     @pytest.mark.parametrize("workers", ["0", "-4", "abc", "1", None])
     def test_io_workers_env_degenerate_values(self, tmp_path, monkeypatch, workers):
@@ -749,7 +828,7 @@ class TestParallelFetch:
         _save_checkpoint(tmp_path, _glu_tensors(glu, "layers.0.experts.switch_glu"))
         _, cache = self._wrap(tmp_path, glu, "4", monkeypatch)
         cache.ensure(mx.arange(cache.capacity))
-        victim = next(iter(cache.slot_of))
+        resident = set(cache.slot_of)
         expert = cache.capacity
         plan = cache.disk.plan("gate_proj", "scales", expert)
         convert = CheckpointExpertStore.to_mx
@@ -763,7 +842,8 @@ class TestParallelFetch:
             patch.setattr(CheckpointExpertStore, "to_mx", staticmethod(fail_convert))
             with pytest.raises(ValueError, match="injected conversion failure"):
                 cache.ensure(mx.array([expert]))
-        assert expert not in cache.slot_of and victim not in cache.slot_of
+        (victim,) = resident - set(cache.slot_of)
+        assert expert not in cache.slot_of
         assert cache.map[expert].item() == cache.map[victim].item() == -1
         assert len(cache.free) == 1
         cache.ensure(mx.array([expert, victim]))
@@ -843,7 +923,7 @@ class TestParallelFetch:
         assert _io_pool() is not None
         mx.random.seed(5)
         for _ in range(6):
-            cache.ensure(_ri(8, K))
+            cache.ensure(_ri(4, K))
         assert cache.misses > cache.capacity
         assert live["peak"] <= 4 * 9  # batch x tensors per expert
         assert live["now"] == 0  # nothing left holding bytes
@@ -860,13 +940,54 @@ class TestParallelFetch:
             order.append(("eval", arrays))
             return sync_eval(*arrays)
 
-        def write(e, payload=None):
+        def write(e, *args, **kwargs):
             order.append(("write", e))
-            return install(e, payload)
+            return install(e, *args, **kwargs)
 
         patch.setattr(meo.mx, "async_eval", dispatch)
         patch.setattr(meo.mx, "eval", evaluate)
         patch.setattr(cache, "_install", write)
+
+    def test_expert_major_prefill_reads_next_chunk_before_eval(
+        self, tmp_path, monkeypatch
+    ):
+        """Over-capacity prefill starts the next chunk's reads before this
+        chunk's eval and installs them after it. Each expert is read once."""
+        import omlx.patches.moe_expert_offload as meo
+
+        glu = _make_glu(seed=18)
+        _save_checkpoint(tmp_path, _glu_tensors(glu, "layers.0.experts.switch_glu"))
+        model, cache = self._wrap(tmp_path, glu, "4", monkeypatch)
+        w = model.layers[0].experts.switch_glu
+        x, i = mx.random.normal((2, 60, D)), _ri(2, 60, K)
+        ref = glu(x, i)
+        mx.eval(ref)
+        distinct = set(i.reshape(-1).tolist())
+        assert len(distinct) > cache.capacity  # the expert-major path
+        order, reads = [], []
+        read_ahead, read = cache._read_ahead, CheckpointExpertStore.read
+
+        def record_ahead(ids, limit):
+            order.append(("ahead", list(ids)))
+            return read_ahead(ids, limit)
+
+        def record_read(plan):
+            reads.append(plan)
+            return read(plan)
+
+        with monkeypatch.context() as patch:
+            self._record_calls(patch, meo, cache, order)
+            patch.setattr(cache, "_read_ahead", record_ahead)
+            patch.setattr(CheckpointExpertStore, "read", staticmethod(record_read))
+            out = w(x, i)
+            mx.eval(out)
+        assert mx.allclose(out, ref, rtol=1e-4, atol=1e-5).item()
+        assert len(reads) == 9 * len(distinct)
+        kinds = [kind for kind, _ in order]
+        first = kinds.index("ahead")
+        assert kinds.index("write") < first  # chunk 0 is installed first
+        assert kinds[first + 1] == "eval"  # then its eval, after the read-ahead
+        assert order.index(("write", order[first][1][0])) > first + 1
 
     def test_overlap_dispatches_gather_before_the_first_write(
         self, tmp_path, monkeypatch

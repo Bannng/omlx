@@ -2613,6 +2613,8 @@ class EnginePool:
         evicted_any = False
         evicted_count = 0
         reclaim_attempted = False
+        slots_release_attempted = False
+        slots_freed = 0
         ane_release_attempted = False
         reason = str(getattr(eviction_request, "reason", "") or "")
         async with self._lock:
@@ -2626,6 +2628,8 @@ class EnginePool:
             def _log_decision(outcome: str) -> None:
                 if ane_release_attempted:
                     action = "release_ane"
+                elif slots_release_attempted:
+                    action = "release_offload_slots"
                 elif reclaim_attempted:
                     action = "reclaim_pool"
                 elif evicted_any:
@@ -2654,11 +2658,18 @@ class EnginePool:
             while True:
                 active = mx.get_active_memory()
                 footprint = _settled_phys_footprint()
-                current = max(active, footprint, self._current_model_memory)
+                # Released offload slots are part of the model's admitted size.
+                model_memory = self._current_model_memory - slots_freed
+                current = max(active, footprint, model_memory)
                 if current + predicted <= target:
                     # Use the same sample for admission and its decision log.
                     _log_decision("headroom_available")
-                    return evicted_any or reclaim_attempted or ane_release_attempted
+                    return (
+                        evicted_any
+                        or reclaim_attempted
+                        or slots_release_attempted
+                        or ane_release_attempted
+                    )
 
                 victim = self._find_lru_prefill_eviction_victim(
                     exclude_model_id=exclude_model_id
@@ -2692,6 +2703,18 @@ class EnginePool:
                         # the target with a fresh reading; reclaim_attempted
                         # keeps this branch from running twice.
                         continue
+                    if not slots_release_attempted:
+                        # Shrink the requesting model's MoE offload caches to
+                        # their top-k floor. Its prefill streams almost every
+                        # expert anyway, and each cache restores itself at the
+                        # next decode step. Nothing released (no offload, or
+                        # other requests running) goes straight to the next rung.
+                        slots_release_attempted = True
+                        slots_freed = await self._release_offload_slots_for_headroom(
+                            exclude_model_id, request_id
+                        )
+                        if slots_freed:
+                            continue
                     if not ane_release_attempted:
                         # Last rung before giving up: shed the requesting
                         # model's own ANE prefill banks. They hold the packed
@@ -2815,6 +2838,46 @@ class EnginePool:
                 request_id,
             )
         return freed
+
+    async def _release_offload_slots_for_headroom(
+        self, model_id: str, request_id: str
+    ) -> int:
+        """Release the requesting model's MoE offload slots; report bytes.
+
+        Runs ``Scheduler.release_moe_offload_slots`` on the engine's own MLX
+        thread, which also clears the pooled buffers the slots fall into.
+        Models without offload, or with other requests running, release
+        nothing.
+        """
+        entry = self._entries.get(model_id)
+        engine = entry.engine if entry is not None else None
+        core = (
+            self._resolve_engine_core_from_engine(engine)
+            if engine is not None
+            else None
+        )
+        scheduler = getattr(core, "scheduler", None)
+        release = getattr(scheduler, "release_moe_offload_slots", None)
+        executor = getattr(core, "_mlx_executor", None)
+        if not callable(release) or executor is None:
+            return 0
+        loop = asyncio.get_running_loop()
+        try:
+            released = await loop.run_in_executor(executor, release, request_id)
+        except Exception as e:
+            logger.warning(
+                "MoE offload slot release failed for prefill request %s: %s",
+                request_id,
+                e,
+            )
+            return 0
+        if released > 0:
+            logger.info(
+                "Released %s of MoE offload slots for prefill request %s",
+                format_size(released),
+                request_id,
+            )
+        return released
 
     async def _release_ane_prefill_for_headroom(
         self, model_id: str, request_id: str

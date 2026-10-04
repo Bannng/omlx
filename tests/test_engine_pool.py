@@ -2671,9 +2671,10 @@ class TestEnginePoolPrefillEviction:
 
     @staticmethod
     def _reclaim_scheduler(reclaim_fn) -> MagicMock:
-        """Scheduler stub exposing only the reclaim helper the pool calls."""
+        """Scheduler stub for the helpers the pool calls; no MoE offload."""
         scheduler = MagicMock()
         scheduler._reclaim_prefill_headroom = MagicMock(side_effect=reclaim_fn)
+        scheduler.release_moe_offload_slots = MagicMock(return_value=0)
         return scheduler
 
     @pytest.mark.asyncio
@@ -2903,6 +2904,60 @@ class TestEnginePoolPrefillEviction:
         # the requesting model itself; no model was unloaded.
         scheduler._reclaim_prefill_headroom.assert_called_once()
         assert released_on == [target_model]
+        pool._unload_engine.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_prefill_releases_offload_slots_before_ane_banks(self):
+        """With MoE expert offload, the requesting model's slot memory is the
+        rung after the pooled reclaim. Releasing it on the engine thread makes
+        room for the chunk, the released bytes leave the model's admitted size
+        too, and the ANE banks are left alone."""
+        gb = 1024**3
+        pool = _make_pool(ceiling=0)
+        phys = [45 * gb]
+        scheduler = self._reclaim_scheduler(lambda: None)
+        threads = []
+
+        def release_slots(request_id):
+            threads.append(threading.current_thread())
+            phys[0] = 29 * gb
+            return 16 * gb
+
+        scheduler.release_moe_offload_slots = MagicMock(side_effect=release_slots)
+        req = PrefillEvictionRequest(
+            request_id="req-1",
+            model_id="target",
+            current_bytes=45 * gb,
+            target_cap_bytes=40 * gb,
+            predicted_transient_bytes=10 * gb,
+            requested_tokens=8192,
+            reason="adaptive_prefill_throttle",
+        )
+        pool._release_ane_prefill_for_headroom = AsyncMock(return_value=0)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            pool._entries = {
+                "target": self._entry(
+                    "target", 25 * gb, scheduler=scheduler, executor=executor
+                )
+            }
+            # The admitted size counts the slots; without them it is 29GB.
+            pool._current_model_memory = 45 * gb
+            pool._unload_engine = AsyncMock()
+            with (
+                patch("omlx.engine_pool.mx.get_active_memory", return_value=0),
+                patch(
+                    "omlx.engine_pool.get_phys_footprint",
+                    side_effect=lambda: phys[0],
+                ),
+            ):
+                admitted = await pool._evict_idle_lru_for_prefill("target", req)
+
+        assert admitted is True
+        scheduler._reclaim_prefill_headroom.assert_called_once()
+        scheduler.release_moe_offload_slots.assert_called_once_with("req-1")
+        assert threads and threads[0] is not threading.current_thread()
+        pool._release_ane_prefill_for_headroom.assert_not_awaited()
         pool._unload_engine.assert_not_awaited()
 
     @pytest.mark.asyncio
