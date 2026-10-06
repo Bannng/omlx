@@ -638,13 +638,7 @@ def _pad_floor(capacity: int) -> int:
 def _expert_route_chunks(
     run_starts: np.ndarray, n_routes: int, capacity: int
 ) -> list[tuple[int, int]]:
-    """Cut expert-sorted routes into chunks of at most ``capacity`` experts.
-
-    Chunk sizes are powers of two where possible, so the prefill padding adds
-    no rows. An expert split across two chunks is installed once: the second
-    chunk's ensure protects it. Whole-expert chunks are kept when they pad
-    to fewer rows, or when any of them is too small to pad.
-    """
+    """Chunks of at most ``capacity`` experts, power-of-two sized if that pads less."""
     cuts = run_starts[::capacity].tolist() + [n_routes]
     whole = list(zip(cuts[:-1], cuts[1:]))
     floor = _pad_floor(capacity)
@@ -658,7 +652,7 @@ def _expert_route_chunks(
         limit = int(run_starts[last]) if last < len(run_starts) else n_routes
         size = 1 << ((limit - start).bit_length() - 1)
         tail = n_routes - start - size
-        if 0 < tail < floor:  # The remainder would be too small to pad.
+        if 0 < tail < floor:
             size = size // 2 if size // 2 >= floor else limit - start
         if size < floor:
             return whole
@@ -787,31 +781,29 @@ class OffloadSwitchGLU(nn.Module):
 
         ``ids[t * k + j]`` is the expert of token ``t``'s ``j``-th route. The
         routes are sorted by expert, resident experts first, and cut into
-        chunks of up to ``capacity`` distinct experts, the same shape as the
-        DeepSeek V4.1 adapter's sorted prefill. Each expert is installed at
-        most once per call (the token-chunked path re-fetched an expert in
-        every chunk that touched it, evicting on the way), and a miss only
-        evicts an expert whose routes have already run. An expert's routes
-        may span two adjacent chunks (see :func:`_expert_route_chunks`).
-        Routes within a chunk are independent (the cross-expert weighted sum
-        happens in the caller), so the chunk runs with one expert index per
-        route, under the kernel the resident model would choose for the
-        whole call (sorted at or above the stock threshold, else unsorted),
-        and the outputs are put back in route order once at the end. Each
-        chunk is evaluated before the next is built, which bounds the
-        prefill transient. The next chunk's first reads start before that
-        eval; their slot writes wait.
+        chunks of up to ``capacity`` distinct experts (see
+        :func:`_expert_route_chunks`), the same shape as the DeepSeek V4.1
+        adapter's sorted prefill: each expert is installed at most once per call
+        (the token-chunked path re-fetched an expert in every chunk that
+        touched it, evicting on the way). Routes within a chunk are
+        independent — the cross-expert weighted sum happens in the caller —
+        so the chunk runs with one expert index per route, under the kernel
+        the resident model would choose for the whole call (sorted at or
+        above the stock threshold, else unsorted), and the outputs are put
+        back in route order once at the end. Each chunk is evaluated before
+        the next is built, which bounds the prefill transient. The next
+        chunk's first reads start before that eval; their slot writes wait.
         """
         c = self.cache
         d_model = flat_x.shape[-1]
         ids_np = np.asarray(ids, dtype=np.int64)
         resident = np.zeros(c.n_experts, dtype=np.bool_)
         resident[c.slot_expert[c.slot_expert >= 0]] = True
-        # Sort key: misses rank after every resident expert.
+        # Resident experts first: a miss evicts only experts already used.
         rank = ids_np + (~resident[ids_np]) * c.n_experts
         order = np.argsort(rank, kind="stable")  # routes grouped by expert
         sorted_ids = ids_np[order]
-        # every position where a new expert's run begins
+        # every position where a new expert's run begins, chunked by capacity
         run_starts = np.flatnonzero(np.diff(sorted_ids)) + 1
         run_starts = np.concatenate(([0], run_starts))
         chunks = _expert_route_chunks(run_starts, len(ids), c.capacity)

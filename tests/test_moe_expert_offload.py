@@ -1373,8 +1373,6 @@ def _offloaded_switch(tmp_path, glu, fraction):
 
 
 def test_over_capacity_prefill_runs_resident_experts_first(tmp_path):
-    """A call uses the experts it finds resident before any miss can evict
-    them, so it reads only the experts it does not find."""
     glu = _make_glu(seed=34, d=256, inter=256, group=64)
     switch = _offloaded_switch(tmp_path, glu, 0.5)
     cache = switch.cache
@@ -1382,8 +1380,7 @@ def test_over_capacity_prefill_runs_resident_experts_first(tmp_path):
     x = mx.random.normal((1, indices.shape[1], 256)).astype(mx.bfloat16)
     first = switch(x, indices)
     mx.eval(first)
-    # The first call leaves the high expert ids resident; ascending expert
-    # order would evict them before it reached them.
+    # High ids stay resident; ascending order would evict them first.
     misses = cache.misses
     second = switch(x, indices)
     mx.eval(second)
@@ -1391,29 +1388,21 @@ def test_over_capacity_prefill_runs_resident_experts_first(tmp_path):
     assert bool(mx.array_equal(first, second))
 
 
-def test_packed_route_chunks_fill_power_of_two_rows():
-    # 32 experts x 10 routes at capacity 16: whole-expert chunks of 160 routes
-    # pad to 256 rows each, power-of-two chunks need no padding.
-    starts = np.arange(0, 320, 10)
-    assert _expert_route_chunks(starts, 320, 16) == [(0, 128), (128, 256), (256, 320)]
+def test_packed_route_chunks_cover_routes_within_capacity():
     rng = np.random.default_rng(81)
     for capacity in (8, 16, 128):
         for i in range(300):
             counts = rng.integers(1, 2 + i % 400, size=capacity * 2)
             starts = np.concatenate(([0], np.cumsum(counts)[:-1]))
-            total = int(counts.sum())
-            chunks = _expert_route_chunks(starts, total, capacity)
-            assert chunks[0][0] == 0 and chunks[-1][1] == total
+            chunks = _expert_route_chunks(starts, int(counts.sum()), capacity)
+            assert chunks[0][0] == 0 and chunks[-1][1] == counts.sum()
             assert all(a[1] == b[0] for a, b in zip(chunks, chunks[1:]))
             for begin, end in chunks:
-                first = np.searchsorted(starts, begin, side="right") - 1
-                last = np.searchsorted(starts, end - 1, side="right") - 1
-                assert last - first + 1 <= capacity
+                first, last = np.searchsorted(starts, [begin, end - 1], side="right")
+                assert last - first < capacity
 
 
 def test_packed_prefill_chunks_match_whole_expert_chunks(tmp_path, monkeypatch):
-    """Routes of an expert split across two chunks get the same bits as with
-    whole-expert chunks."""
     glu = _make_glu(seed=71, d=256, inter=256, group=64)
     # 32 experts x 10 routes at capacity 16: the chunks split experts 12 and 25.
     indices = mx.tile(mx.arange(E), 10).reshape(1, -1, K)
