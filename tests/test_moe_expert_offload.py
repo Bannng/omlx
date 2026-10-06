@@ -13,6 +13,7 @@ head-room for kernel choice, not for wrong experts, which show as O(1).
 
 import threading
 
+import numpy as np
 import pytest
 
 try:
@@ -27,9 +28,11 @@ except ImportError:
 pytestmark = pytest.mark.skipif(not HAS_MLX, reason="MLX not available")
 
 if HAS_MLX:
+    from omlx.patches import moe_expert_offload as offload_module
     from omlx.patches.moe_expert_offload import (
         CheckpointExpertStore,
         OffloadSwitchGLU,
+        _expert_route_chunks,
         _io_pool,
         _shutdown_io_pool,
         apply_moe_expert_offload,
@@ -1360,3 +1363,77 @@ def test_mtp_resident_keeps_native_head_unwrapped(tmp_path, mtp_resident):
     assert isinstance(model.layers[0].experts.switch_glu, OffloadSwitchGLU)
     assert (model.mtp.layers[0].experts.switch_glu is head) is mtp_resident
     assert (priced > streamed) is mtp_resident
+
+
+def _offloaded_switch(tmp_path, glu, fraction):
+    _save_checkpoint(tmp_path, _glu_tensors(glu, "layers.0.experts.switch_glu"))
+    model = _MiniMoE([glu])
+    apply_moe_expert_offload(model, tmp_path, fraction)
+    return model.layers[0].experts.switch_glu
+
+
+def test_over_capacity_prefill_runs_resident_experts_first(tmp_path):
+    """A call uses the experts it finds resident before any miss can evict
+    them, so it reads only the experts it does not find."""
+    glu = _make_glu(seed=34, d=256, inter=256, group=64)
+    switch = _offloaded_switch(tmp_path, glu, 0.5)
+    cache = switch.cache
+    indices = mx.tile(mx.arange(E), 4).reshape(1, -1, K)
+    x = mx.random.normal((1, indices.shape[1], 256)).astype(mx.bfloat16)
+    first = switch(x, indices)
+    mx.eval(first)
+    # The first call leaves the high expert ids resident; ascending expert
+    # order would evict them before it reached them.
+    misses = cache.misses
+    second = switch(x, indices)
+    mx.eval(second)
+    assert cache.misses - misses == E - cache.capacity
+    assert bool(mx.array_equal(first, second))
+
+
+def test_packed_route_chunks_fill_power_of_two_rows():
+    # 32 experts x 10 routes at capacity 16: whole-expert chunks of 160 routes
+    # pad to 256 rows each, power-of-two chunks need no padding.
+    starts = np.arange(0, 320, 10)
+    assert _expert_route_chunks(starts, 320, 16) == [(0, 128), (128, 256), (256, 320)]
+    rng = np.random.default_rng(81)
+    for capacity in (8, 16, 128):
+        for i in range(300):
+            counts = rng.integers(1, 2 + i % 400, size=capacity * 2)
+            starts = np.concatenate(([0], np.cumsum(counts)[:-1]))
+            total = int(counts.sum())
+            chunks = _expert_route_chunks(starts, total, capacity)
+            assert chunks[0][0] == 0 and chunks[-1][1] == total
+            assert all(a[1] == b[0] for a, b in zip(chunks, chunks[1:]))
+            for begin, end in chunks:
+                first = np.searchsorted(starts, begin, side="right") - 1
+                last = np.searchsorted(starts, end - 1, side="right") - 1
+                assert last - first + 1 <= capacity
+
+
+def test_packed_prefill_chunks_match_whole_expert_chunks(tmp_path, monkeypatch):
+    """Routes of an expert split across two chunks get the same bits as with
+    whole-expert chunks."""
+    glu = _make_glu(seed=71, d=256, inter=256, group=64)
+    # 32 experts x 10 routes at capacity 16: the chunks split experts 12 and 25.
+    indices = mx.tile(mx.arange(E), 10).reshape(1, -1, K)
+    x = mx.random.normal((1, indices.shape[1], 256)).astype(mx.bfloat16)
+    packed = []
+
+    def spy(starts, n_routes, capacity):
+        packed.append(_expert_route_chunks(starts, n_routes, capacity))
+        return packed[-1]
+
+    def whole(starts, n_routes, capacity):
+        cuts = starts[::capacity].tolist() + [n_routes]
+        return list(zip(cuts[:-1], cuts[1:]))
+
+    outputs = []
+    for partition in (spy, whole):
+        monkeypatch.setattr(offload_module, "_expert_route_chunks", partition)
+        switch = _offloaded_switch(tmp_path, glu, 0.5)
+        out = switch(x, indices)
+        mx.eval(out)
+        outputs.append(out)
+    assert packed == [[(0, 128), (128, 256), (256, 320)]]
+    assert bool(mx.array_equal(*outputs))
