@@ -4845,9 +4845,14 @@ def _allow_reasoning_opener(tag_dict: dict) -> None:
     prefix = fmt["elements"][0]
     if prefix.get("type") == "sequence" and prefix.get("elements"):
         prefix = prefix["elements"][0]
-    if prefix.get("type") != "tag" or prefix.get("begin") != "":
+    end = prefix.get("end", "")
+    if (
+        prefix.get("type") != "tag"
+        or prefix.get("begin") != ""
+        or not end.startswith("</")
+    ):
         return
-    opener = prefix.get("end", "").replace("</", "<", 1)
+    opener = "<" + end[2:]
     content = prefix.get("content") or {}
     if opener in (content.get("excludes") or []):
         content["excludes"] = [x for x in content["excludes"] if x != opener]
@@ -4875,19 +4880,19 @@ def _compile_with_structural_tag(
     tag = xgr.get_builtin_structural_tag(reasoning_parser, reasoning=reasoning)
     tag_dict = tag.model_dump()
     _allow_reasoning_opener(tag_dict)
+    # Compiling the tag without the user grammar would leave the answer
+    # unconstrained, so fail and let the caller report it.
     if not _patch_output_format(tag_dict, fmt):
-        logger.warning(
-            "Could not patch output format for reasoning_parser=%s, "
-            "compiling structural tag as-is",
-            reasoning_parser,
+        raise ValueError(
+            f"reasoning_parser={reasoning_parser!r} has no output slot for "
+            "the requested format"
         )
     from .api.grammar import mark_grammar_thinking_phase
 
-    # An optional ("auto") reasoning block cannot take a forced close: the
-    # model may already be in the answer.
     return mark_grammar_thinking_phase(
         compiler.compile_structural_tag(tag_dict),
-        enabled=reasoning in (True, "enabled"),
+        enabled=reasoning not in (False, "disabled"),
+        optional=reasoning == "auto",
     )
 
 

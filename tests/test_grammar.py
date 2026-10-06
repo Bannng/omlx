@@ -579,6 +579,27 @@ class TestCompileGrammarForRequest:
         )
         mock_get_tag.assert_called_once_with("qwen", reasoning=False)
 
+    @requires_xgrammar
+    @patch("xgrammar.get_builtin_structural_tag")
+    def test_tag_without_output_slot_degrades_response_format(self, mock_get_tag):
+        """A tag with no output slot must not compile an unconstrained answer."""
+        mock_tag = MagicMock()
+        mock_tag.model_dump.return_value = {
+            "type": "structural_tag",
+            "format": {"type": "const_string", "value": "x"},
+        }
+        mock_get_tag.return_value = mock_tag
+        compiler = MagicMock()
+        engine = _make_engine(grammar_compiler=compiler)
+
+        result = self._call(
+            engine,
+            response_format={"type": "json_object"},
+            reasoning_parser="kimi_k3",
+        )
+        assert result is None
+        compiler.compile_structural_tag.assert_not_called()
+
     def test_no_reasoning_parser_uses_bare_grammar(self):
         """Without reasoning_parser, bare grammar compilation is used."""
         compiler = MagicMock()
@@ -1030,7 +1051,7 @@ _THINK_END, _THINK_START, _BUDGET_STOP = 256, 257, 258
 _MM_THINK_START, _MM_THINK_END = 265, 266
 
 
-def _budget_processors(compiled, think_end=_THINK_END):
+def _budget_processors(compiled, think_end=_THINK_END, think_start=_THINK_START):
     scheduler = MagicMock(spec=Scheduler)
     scheduler._xtc_special_tokens = set()
     scheduler._model_suppress_tokens = set()
@@ -1041,6 +1062,12 @@ def _budget_processors(compiled, think_end=_THINK_END):
     scheduler._resolve_output_parser_thinking_trailing_ids.return_value = None
     scheduler._get_output_parser_thinking_end_text.return_value = (
         _BUDGET_VOCAB[think_end].decode()
+    )
+    scheduler._get_output_parser_thinking_start_text.return_value = (
+        _BUDGET_VOCAB[think_start].decode()
+    )
+    scheduler._encode_thinking_marker.side_effect = (
+        lambda text: [_BUDGET_VOCAB.index(text.encode())]
     )
     scheduler._thinking_budget_token_to_piece.side_effect = (
         lambda token: _BUDGET_VOCAB[token]
@@ -1148,13 +1175,23 @@ class TestGrammarThinkingBudget:
             preferred=lambda token: ord("x") if token == _MM_THINK_END else token,
         )
 
-    def test_minimax_m3_adaptive_grammar_skips_budget(self, compiler):
+    # The adaptive prompt leaves <mm:think> to the model, so the budget must not
+    # count, or force a close into, an answer that skips reasoning.
+    @pytest.mark.parametrize(
+        "expected",
+        [[*b"abc"], [_MM_THINK_START, _MM_THINK_END, *b"abc"]],
+    )
+    def test_minimax_m3_adaptive_budget_waits_for_opener(self, compiler, expected):
         compiled = _compile_with_structural_tag(
             compiler, {"type": "regex", "pattern": "abc"}, "minimax_m3", {}
         )
-        processors = _budget_processors(compiled, think_end=_MM_THINK_END)
-        assert not _has_budget(processors)
-        _sample_through(processors, [*b"abc", _BUDGET_STOP])
+        _sample_through(
+            _budget_processors(
+                compiled, think_end=_MM_THINK_END, think_start=_MM_THINK_START
+            ),
+            [*expected, _BUDGET_STOP],
+            preferred=lambda token: ord("x") if token == _MM_THINK_END else token,
+        )
 
     @pytest.mark.parametrize(
         "ct_kwargs, output",
