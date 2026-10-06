@@ -2202,13 +2202,15 @@ class TestSchedulerStatistics:
         expected = scheduler_module._QWEN4_WIDE_PREFILL_STEP if offload else 0
         assert scheduler._qwen4_wide_prefill_step == expected
 
-    def test_offload_slots_released_only_for_a_lone_prefill(
+    def test_offload_slots_released_for_a_lone_prefill_until_decode(
         self, mock_model, mock_tokenizer
     ):
-        """Slots are released only while no other request runs on the engine."""
+        """Slots are released only while no other request runs on the engine,
+        and the next decode step restores them once, whatever its batch width."""
         scheduler = Scheduler(model=mock_model, tokenizer=mock_tokenizer)
         release = MagicMock(return_value=3 * 1024**3)
         scheduler.moe_offload_release = release
+        scheduler.moe_offload_restore = MagicMock()
         scheduler._reclaim_prefill_headroom = MagicMock()
         scheduler.running["decoding"] = MagicMock()
         assert scheduler.release_moe_offload_slots("prefilling") == 0
@@ -2217,6 +2219,16 @@ class TestSchedulerStatistics:
         assert scheduler.release_moe_offload_slots("prefilling") == 3 * 1024**3
         release.assert_called_once()
         scheduler._reclaim_prefill_headroom.assert_called_once()
+
+        scheduler._schedule_waiting = MagicMock(return_value=([], []))
+        scheduler._process_batch_responses = MagicMock(return_value=([], set()))
+        scheduler._cleanup_finished = MagicMock()
+        scheduler.running = {f"row-{i}": MagicMock() for i in range(9)}
+        scheduler.batch_generator = MagicMock()
+        for _ in range(2):
+            scheduler.batch_generator.next_generated.return_value = iter([])
+            scheduler.step()
+        scheduler.moe_offload_restore.assert_called_once_with()
 
 
 class TestSchedulerReset:

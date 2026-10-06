@@ -355,7 +355,7 @@ class BatchedEngine(BaseEngine):
         # materializing. Runs on the MLX executor because it allocates the
         # resident slot tensors (#1304).
         moe_offload_wrapped = 0
-        offload_stats = offload_release = None
+        offload_stats = offload_release = offload_restore = None
         if getattr(self._model_settings, "moe_expert_offload_enabled", False):
             from ..patches.moe_expert_offload import (
                 apply_moe_expert_offload,
@@ -363,6 +363,7 @@ class BatchedEngine(BaseEngine):
                 moe_offload_caches,
                 moe_offload_stats,
                 release_moe_offload_slots,
+                restore_moe_offload_slots,
             )
 
             fraction = float(
@@ -399,6 +400,7 @@ class BatchedEngine(BaseEngine):
                 caches = moe_offload_caches(self._model)
                 offload_stats = functools.partial(moe_offload_stats, caches=caches)
                 offload_release = functools.partial(release_moe_offload_slots, caches)
+                offload_restore = functools.partial(restore_moe_offload_slots, caches)
 
         # Materialize lazy buffers on the loader thread so per-engine
         # inference threads can read them (#1304).
@@ -725,6 +727,7 @@ class BatchedEngine(BaseEngine):
         scheduler = self._engine.engine.scheduler
         scheduler.moe_offload_stats = offload_stats
         scheduler.moe_offload_release = offload_release
+        scheduler.moe_offload_restore = offload_restore
         if ane_prefill_sequence_length:
             from ..patches.qwen35_ane_prefill import (
                 configure_qwen35_ane_prefill_scheduler,

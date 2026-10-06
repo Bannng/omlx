@@ -2446,6 +2446,8 @@ class Scheduler:
         # Set by the engine when MoE expert offload wrapped the model.
         self.moe_offload_stats: Callable[[], dict] | None = None
         self.moe_offload_release: Callable[[], int] | None = None
+        self.moe_offload_restore: Callable[[], None] | None = None
+        self._moe_offload_slots_released = False
 
         # Step counter for periodic cleanup
         self._step_counter = 0
@@ -5711,13 +5713,14 @@ class Scheduler:
     def release_moe_offload_slots(self, request_id: str) -> int:
         """Release the offload slots for ``request_id``'s prefill; return the bytes.
 
-        Skipped while another request runs, whose next decode would restore them."""
+        Skipped while another request runs; the next decode step restores them."""
         if self.moe_offload_release is None or any(
             rid != request_id for rid in self.running
         ):
             return 0
         released = self.moe_offload_release()
         if released:
+            self._moe_offload_slots_released = True
             self._reclaim_prefill_headroom()
         return released
 
@@ -13547,6 +13550,9 @@ class Scheduler:
             if (
                 self.batch_generator is not None or self._vlm_mtp_active
             ) and self.running:
+                if self._moe_offload_slots_released:
+                    self._moe_offload_slots_released = False
+                    self.moe_offload_restore()
                 _t_decode_start = time.perf_counter()
                 if self.batch_generator is not None:
                     responses = list(self.batch_generator.next_generated())

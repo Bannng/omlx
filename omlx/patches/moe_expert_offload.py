@@ -828,8 +828,6 @@ class OffloadSwitchGLU(nn.Module):
         c = self.cache
         flat_i = indices.reshape(-1, indices.shape[-1])
         n_tok, k = flat_i.shape
-        if c.capacity < c.full_capacity and n_tok * k <= c.full_capacity:
-            c.restore_slots()  # The first decode-sized call after a release
         if k > c.capacity:
             raise ValueError("Expert cache capacity is smaller than routing top-k")
         if n_tok * k <= c.capacity or n_tok == 1:
@@ -1273,6 +1271,13 @@ def release_moe_offload_slots(caches) -> int:
     return sum(c.release_slots() for c in caches if hasattr(c, "release_slots"))
 
 
+def restore_moe_offload_slots(caches) -> None:
+    """Return every cache shrunk by :func:`release_moe_offload_slots` to full size."""
+    for c in caches:
+        if hasattr(c, "restore_slots"):
+            c.restore_slots()
+
+
 def moe_offload_stats(model=None, caches=None) -> dict:
     """Aggregate hit/miss/byte counters over all offloaded layers."""
     if caches is None:
@@ -1297,4 +1302,5 @@ __all__ = [
     "moe_offload_caches",
     "moe_offload_stats",
     "release_moe_offload_slots",
+    "restore_moe_offload_slots",
 ]

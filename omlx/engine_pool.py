@@ -2673,7 +2673,7 @@ class EnginePool:
             def _log_decision(outcome: str) -> None:
                 if ane_release_attempted:
                     action = "release_ane"
-                elif slots_release_attempted:
+                elif slots_freed:
                     action = "release_offload_slots"
                 elif reclaim_attempted:
                     action = "reclaim_pool"
@@ -2718,7 +2718,7 @@ class EnginePool:
                     return (
                         evicted_any
                         or reclaim_attempted
-                        or slots_release_attempted
+                        or slots_freed > 0
                         or ane_release_attempted
                         or hot_cache_released
                     )
@@ -2730,6 +2730,16 @@ class EnginePool:
                         exclude_model_id, request_id
                     )
                     continue
+
+                if not slots_release_attempted:
+                    # The requesting model's MoE offload slots return at its next
+                    # decode step, so they go before cached prefixes and models.
+                    slots_release_attempted = True
+                    slots_freed = await self._release_offload_slots_for_headroom(
+                        exclude_model_id, request_id
+                    )
+                    if slots_freed:
+                        continue
 
                 if not hot_cache_attempted:
                     # Cached prefix blocks give way before any model does.
@@ -2777,15 +2787,6 @@ class EnginePool:
                         # the target with a fresh reading; reclaim_attempted
                         # keeps this branch from running twice.
                         continue
-                    if not slots_release_attempted:
-                        # Shrink the requesting model's MoE offload caches to
-                        # their top-k floor; nothing released skips to the next rung.
-                        slots_release_attempted = True
-                        slots_freed = await self._release_offload_slots_for_headroom(
-                            exclude_model_id, request_id
-                        )
-                        if slots_freed:
-                            continue
                     if not ane_release_attempted:
                         # Last rung before giving up: shed the requesting
                         # model's own ANE prefill banks. They hold the packed

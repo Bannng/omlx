@@ -37,6 +37,7 @@ if HAS_MLX:
         moe_offload_caches,
         moe_offload_stats,
         release_moe_offload_slots,
+        restore_moe_offload_slots,
     )
 
 # toy geometry: E large enough that a 25% fraction clears the capacity floor
@@ -268,9 +269,9 @@ class TestApplyAndForward:
         mx.eval(got_below)
         assert bool(mx.array_equal(ref_below, got_below))
 
-    def test_released_slots_serve_prefill_and_return_on_decode(self, tmp_path):
-        """Prefill runs on the released top-k floor; the next decode-sized call
-        restores the full capacity."""
+    def test_released_slots_serve_calls_until_restored(self, tmp_path):
+        """Prefill and decode both run on the released top-k floor; only an
+        explicit restore returns the full capacity."""
         model, _ = self._wrapped_model(tmp_path, n_layers=1)
         prefill = (mx.random.normal((2, 60, D)), _ri(2, 60, K))
         decode = (mx.random.normal((1, 1, D)), _ri(1, 1, K))
@@ -278,19 +279,21 @@ class TestApplyAndForward:
         mx.eval(ref_prefill, ref_decode)
         apply_moe_expert_offload(model, tmp_path, 0.5)
         cache = model.layers[0].experts.switch_glu.cache
+        caches = moe_offload_caches(model)
         full = cache.capacity
         assert cache.floor < full
-        freed = release_moe_offload_slots(moe_offload_caches(model))
+        freed = release_moe_offload_slots(caches)
         assert freed == (full - cache.floor) * cache.expert_bytes
-        assert cache.capacity == cache.floor
         got = model(*prefill)
         mx.eval(got)
-        assert cache.capacity == cache.floor
         assert mx.allclose(got, ref_prefill, rtol=1e-4, atol=1e-5).item()
-        got = model(*decode)
-        mx.eval(got)
-        assert cache.capacity == full
-        assert bool(mx.array_equal(got, ref_decode))
+        for restored in (False, True):
+            if restored:
+                restore_moe_offload_slots(caches)
+            got = model(*decode)
+            mx.eval(got)
+            assert cache.capacity == (full if restored else cache.floor)
+            assert bool(mx.array_equal(got, ref_decode))
 
     def test_prefill_padding_preserves_small_chunk_kernel(self, tmp_path):
         glu = _make_glu(seed=42, d=128, inter=128)
