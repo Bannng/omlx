@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 #     raises a stub-identifying RuntimeError. Module-level
 #     ``_FULL_MASK = torch.tensor(-1, ...)`` patterns succeed at import
 #     time; any subsequent method call (.fill_, .item, ...) fails.
-_TARGET_XGRAMMAR_VERSIONS = ("0.2.3",)
+_TARGET_XGRAMMAR_VERSIONS = ("0.2.8",)
 _TARGET_TVM_FFI_VERSIONS = ("0.1.11",)
 
 # Serialize install() across threads. Without this, two threads that both
