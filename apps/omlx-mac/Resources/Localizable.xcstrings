@@ -23170,6 +23170,30 @@
         }
       }
     },
+    "settings.model_type.decision" : {
+      "comment" : "Model type option label for decision models served by /v1/systemone",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decision"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decision"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "决策"
+          }
+        }
+      }
+    },
     "settings.model_type.embed" : {
       "comment" : "Model type option label for embedding models",
       "extractionState" : "manual",

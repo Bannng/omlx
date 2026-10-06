@@ -159,6 +159,7 @@ from .api.responses_utils import (
     normalize_response_output_to_messages,
     split_namespace_tool_name,
 )
+from .api.systemone_models import SystemOneRequest
 from .api.thinking import ThinkingParser, extract_thinking, prompt_opens_thinking
 from .api.tool_calling import (
     ToolCallExtraction,
@@ -190,6 +191,7 @@ from .engine.distributed import DistributedInferenceError
 from .engine.vlm import MINIMAX_M3_MODEL_TYPES
 from .engine.embedding import EmbeddingEngine
 from .engine.reranker import RerankerEngine
+from .engine.decision import DecisionEngine
 from .engine_pool import EnginePool
 from .exceptions import (
     EnginePoolError,
@@ -205,6 +207,7 @@ from .exceptions import (
     SchedulerQueueFullError,
 )
 from .model_settings import forced_ct_keys, merge_chat_template_request_kwargs
+from .models.decision import DecisionContextLengthError, DecisionRequestError
 from .server_metrics import get_server_metrics, reset_server_metrics
 
 logging.basicConfig(level=logging.INFO)
@@ -226,6 +229,7 @@ class EngineType(Enum):
     LLM = "llm"
     EMBEDDING = "embedding"
     RERANKER = "reranker"
+    DECISION = "decision"
 
 
 @dataclass
@@ -1337,15 +1341,17 @@ async def get_engine(
     engine_type: EngineType = EngineType.LLM,
     _lease: bool = False,
     _leased_out: list | None = None,
-) -> Union[BaseEngine, EmbeddingEngine, RerankerEngine]:
+) -> Union[BaseEngine, EmbeddingEngine, RerankerEngine, DecisionEngine]:
     """
     Get engine for the specified model and type.
 
-    This is the unified engine getter that handles LLM, embedding, and reranker models.
+    This is the unified engine getter that handles LLM, embedding, reranker,
+    and decision models.
 
     Args:
         model_id: Model ID to get engine for, or None for default (LLM only)
-        engine_type: Type of engine to retrieve (LLM, EMBEDDING, or RERANKER)
+        engine_type: Type of engine to retrieve (LLM, EMBEDDING, RERANKER, or
+            DECISION)
         _lease: When True, take an atomic in-use lease on the engine that the
             pool actually loaded (eviction-proof until released). The caller
             MUST release exactly one lease per successful leased call.
@@ -1477,6 +1483,13 @@ async def get_engine(
                     detail=f"Model '{model_id}' is not a reranker model. "
                     f"Use a SequenceClassification model for reranking.",
                 )
+        elif engine_type == EngineType.DECISION:
+            if not isinstance(engine, DecisionEngine):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Model '{model_id}' is not a decision model. "
+                    f"Use a decision model such as Clef or OpenJev.",
+                )
         elif engine_type == EngineType.LLM:
             # #507: non-LLM engines (STT/TTS/STS/Embedding/Reranker) previously
             # fell through and crashed on `engine.model_type` with an unhandled
@@ -1526,6 +1539,8 @@ def _suggest_endpoint_for_engine(engine: object) -> str:
         return "Use /v1/embeddings for embedding models."
     if isinstance(engine, RerankerEngine):
         return "Use /v1/rerank for reranker models."
+    if isinstance(engine, DecisionEngine):
+        return "Use /v1/systemone for decision models."
     return "Use the model's dedicated endpoint (see /v1/models)."
 
 
@@ -1709,6 +1724,28 @@ async def acquire_reranker_engine(model: str):
     leased: list = []
     engine = await get_engine(
         model, EngineType.RERANKER, _lease=True, _leased_out=leased
+    )
+    try:
+        yield engine
+    finally:
+        if leased:
+            await get_engine_pool().release_engine(leased[0])
+
+
+async def get_decision_engine(model: str) -> DecisionEngine:
+    """Get the decision engine for ``model`` (see get_engine for errors)."""
+    return await get_engine(model, EngineType.DECISION)
+
+
+@asynccontextmanager
+async def acquire_decision_engine(model: str):
+    """Acquire a decision engine with an atomic, eviction-proof in-use lease.
+
+    See acquire_embedding_engine for the lease/release contract.
+    """
+    leased: list = []
+    engine = await get_engine(
+        model, EngineType.DECISION, _lease=True, _leased_out=leased
     )
     try:
         yield engine
@@ -3821,6 +3858,79 @@ async def create_rerank(
         model=request.model,
         usage=RerankUsage(total_tokens=output.total_tokens),
     )
+
+
+@app.post("/v1/systemone")
+async def create_systemone(
+    request: SystemOneRequest,
+    http_request: FastAPIRequest,
+    _: bool = Depends(verify_inference_api_key),
+):
+    """
+    Answer typed questions about a state with a decision model.
+
+    TypeSafe System One compatible endpoint. Every answer carries a
+    probability for each option of a ``noul`` (yes/no), ``choice`` or
+    ``score`` question.
+
+    Example request:
+    ```json
+    {
+        "model": "clef-flash-4bit",
+        "state": "Checkout fails for every customer since the last deploy.",
+        "questions": {
+            "urgent": {"type": "noul", "instructions": "Is this urgent?"}
+        }
+    }
+    ```
+    """
+    oq_manager = getattr(_server_state, "oq_manager", None)
+    if oq_manager and oq_manager.is_quantizing:
+        raise HTTPException(
+            status_code=503,
+            detail="Server is busy with oQ quantization. Please try again after quantization completes.",
+        )
+    _reject_lone_surrogates(request)
+
+    # Tokenize and preprocess images before the keepalive response starts, so
+    # request errors keep their real status codes.
+    engine = await get_decision_engine(request.model)
+    try:
+        plan = await engine.encode(request.model_dump(), truncate=request.truncate)
+    except DecisionContextLengthError as e:
+        raise HTTPException(status_code=413, detail=str(e)) from e
+    except DecisionRequestError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    async def _decide():
+        start_time = time.perf_counter()
+        async with acquire_decision_engine(request.model) as leased_engine:
+            result = await leased_engine.systemone(plan)
+        elapsed = time.perf_counter() - start_time
+        resolved_model = resolve_model_id(request.model) or request.model
+        input_tokens = result["input_tokens"]
+        logger.info(
+            f"SystemOne: model={resolved_model}, {len(request.questions)} "
+            f"questions, {input_tokens} tokens in {elapsed:.3f}s"
+        )
+        get_server_metrics().record_request_complete(
+            prompt_tokens=input_tokens,
+            completion_tokens=0,
+            cached_tokens=0,
+            prefill_duration=elapsed,
+            model_id=resolved_model,
+            request_duration=elapsed,
+        )
+        return json.dumps(
+            {
+                "model": request.model,
+                "answers": result["answers"],
+                "usage": {"input_tokens": input_tokens, "output_tokens": 0},
+            },
+            ensure_ascii=False,
+        )
+
+    return await _json_response_or_keepalive(http_request, _decide())
 
 
 # =============================================================================

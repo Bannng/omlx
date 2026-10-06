@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import omlx.server as srv
+from omlx.engine.decision import DecisionEngine
 from omlx.engine_pool import EngineEntry
 from omlx.exceptions import (
     InvalidRequestError,
@@ -793,6 +794,15 @@ class TestGetEngineLLMTypeValidation:
         with pytest.raises(HTTPException) as exc_info:
             await get_engine("jina-reranker", EngineType.LLM)
         assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_llm_rejects_decision_engine_with_endpoint_hint(self):
+        self._pool_returning(MagicMock(spec=DecisionEngine))
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_engine("clef-flash-4bit", EngineType.LLM)
+        assert exc_info.value.status_code == 400
+        assert "/v1/systemone" in str(exc_info.value.detail)
 
     @pytest.mark.asyncio
     async def test_llm_accepts_llm_engine(self):

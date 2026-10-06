@@ -85,6 +85,9 @@ final class ModelSettingsScreenVM {
             ("audio_sts", String(localized: "settings.model_type.audio_sts",
                                  defaultValue: "Audio STS",
                                  comment: "Model type option label for speech-to-speech models")),
+            ("decision", String(localized: "settings.model_type.decision",
+                                defaultValue: "Decision",
+                                comment: "Model type option label for decision models served by /v1/systemone")),
         ]
     }
 

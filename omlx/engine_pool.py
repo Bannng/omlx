@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 import mlx.core as mx
 
 from .engine import BaseEngine, BatchedEngine
+from .engine.decision import DecisionEngine
 from .engine.embedding import EmbeddingEngine
 from .engine.reranker import RerankerEngine
 from .engine.sts import STSEngine
@@ -261,7 +262,14 @@ class EngineEntry:
     model_id: str  # Directory name (e.g., "llama-3b")
     model_path: str  # Full path to model directory
     model_type: Literal[
-        "llm", "vlm", "embedding", "reranker", "audio_stt", "audio_tts", "audio_sts"
+        "llm",
+        "vlm",
+        "embedding",
+        "reranker",
+        "audio_stt",
+        "audio_tts",
+        "audio_sts",
+        "decision",
     ]  # Model type
     engine_type: Literal[
         "batched",
@@ -272,6 +280,7 @@ class EngineEntry:
         "audio_stt",
         "audio_tts",
         "audio_sts",
+        "decision",
     ]  # Engine type to use
     estimated_size: int  # Pre-calculated from safetensors (bytes)
     text_only_size: int = 0  # Language-only estimate for VLM checkpoints (0 = n/a)
@@ -297,6 +306,7 @@ class EngineEntry:
         BaseEngine
         | EmbeddingEngine
         | RerankerEngine
+        | DecisionEngine
         | STTEngine
         | STSEngine
         | TTSEngine
@@ -1379,6 +1389,7 @@ class EnginePool:
         "audio_stt": "audio_stt",
         "audio_tts": "audio_tts",
         "audio_sts": "audio_sts",
+        "decision": "decision",
     }
 
     @staticmethod
@@ -3538,7 +3549,13 @@ class EnginePool:
             # since DFlash has its own model loading pipeline
             engine = None
             deployment = deployment if effective_type == "batched" else None
-            if deployment is None and model_settings is not None:
+            # Decision models never decode, so speculative decoding settings
+            # saved for the same checkpoint do not apply.
+            if (
+                deployment is None
+                and model_settings is not None
+                and effective_type != "decision"
+            ):
                 dflash_enabled = getattr(model_settings, "dflash_enabled", False)
                 dflash_draft = getattr(model_settings, "dflash_draft_model", None)
                 if dflash_enabled and not dflash_draft:
@@ -3679,6 +3696,12 @@ class EnginePool:
                     engine = RerankerEngine(
                         model_name=entry.model_path,
                         trust_remote_code=trc,
+                    )
+                elif effective_type == "decision":
+                    engine = DecisionEngine(
+                        model_name=entry.model_path,
+                        trust_remote_code=trc,
+                        scheduler_config=self._scheduler_config,
                     )
                 elif effective_type == "vlm":
                     engine = VLMBatchedEngine(

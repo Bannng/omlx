@@ -56,6 +56,7 @@ final class ModelSettingsScreenVMTests: XCTestCase {
                 "audio_stt",
                 "audio_tts",
                 "audio_sts",
+                "decision",
             ]
         )
     }

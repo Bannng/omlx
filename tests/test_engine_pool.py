@@ -994,6 +994,21 @@ class TestApplySettingsOverrides:
         assert pool.get_entry("model-b").model_type == "llm"
         assert pool.get_entry("model-b").engine_type == "batched"
 
+    def test_decision_override_selects_decision_engine(self, small_mock_model_dir):
+        pool = _make_pool(ceiling=10 * 1024**3)
+        pool.discover_models(str(small_mock_model_dir))
+
+        from omlx.model_settings import ModelSettings
+
+        settings_manager = MagicMock()
+        settings_manager.get_settings.return_value = ModelSettings(
+            model_type_override="decision"
+        )
+        pool.apply_settings_overrides(settings_manager)
+
+        assert pool.get_entry("model-a").model_type == "decision"
+        assert pool.get_entry("model-a").engine_type == "decision"
+
     def test_no_override_leaves_entry_unchanged(self, small_mock_model_dir):
         """Test that None override doesn't change entry types."""
         pool = _make_pool(ceiling=10 * 1024**3)
@@ -2000,6 +2015,46 @@ class TestEnginePoolAsync:
 
         assert engine is mock_engine
         MockEmbeddingEngine.assert_called_once_with(
+            model_name=str(model_path),
+            trust_remote_code=False,
+            scheduler_config=pool._scheduler_config,
+        )
+
+    @pytest.mark.asyncio
+    async def test_decision_engine_ignores_saved_dflash_settings(self, tmp_path):
+        """A checkpoint once served as a VLM may keep DFlash settings; a decision
+        load must still build the decision engine."""
+        from omlx.model_settings import ModelSettings
+
+        model_path = tmp_path / "clef"
+        model_path.mkdir()
+        (model_path / "config.json").write_text(json.dumps({"model_type": "qwen3_5"}))
+        pool = _make_pool(ceiling=10 * 1024**3)
+        pool._settings_manager = MagicMock()
+        pool._settings_manager.get_settings.return_value = ModelSettings(
+            dflash_enabled=True, dflash_draft_model="draft"
+        )
+        pool._entries["clef"] = EngineEntry(
+            model_id="clef",
+            model_path=str(model_path),
+            model_type="decision",
+            engine_type="decision",
+            estimated_size=1024,
+        )
+        mock_engine = MagicMock()
+        mock_engine.start = AsyncMock()
+
+        with (
+            patch(
+                "omlx.engine_pool.DecisionEngine", return_value=mock_engine
+            ) as MockDecisionEngine,
+            patch("omlx.engine.dflash.DFlashEngine") as MockDFlashEngine,
+        ):
+            engine = await pool.get_engine("clef")
+
+        assert engine is mock_engine
+        MockDFlashEngine.assert_not_called()
+        MockDecisionEngine.assert_called_once_with(
             model_name=str(model_path),
             trust_remote_code=False,
             scheduler_config=pool._scheduler_config,

@@ -58,6 +58,10 @@ Run `python -m pytest -q tests/test_cli.py tests/test_integrations.py` to check 
 
 Run `python -m pytest -q tests/test_modernbert_attention.py tests/test_embedding.py tests/test_mlx_embeddings_compat.py` to check finite padded attention, single-input equivalence, local-window masking, and embedding integration. The attention regression covers fp16, bf16, and fp32 at lengths around the affected SDPA tile boundaries.
 
+# Decision model tests
+
+Run `python -m pytest -q tests/test_systemone.py` to check the `/v1/systemone` decision models. Clef cases cover the prompt layout and question/option spans, state truncation, answer formatting, the joint head parameter names against the released checkpoint layout, and one logit per option for each question. OpenJev cases cover the text and screenshot prompt layouts, image sources, the two-stage readout for more than 52 options, and the calibration and confidence formulas. A tiny random Qwen3.5 backbone checks that chunked prefill matches a single pass and that a copied prefix cache gives the same readout as a full prefill. Detection, pool dispatch, the endpoint and the oQ head passthrough are tested in `test_model_discovery.py`, `test_engine_pool.py`, `integration/test_server_endpoints.py` and `test_oq.py`. No model download is required.
+
 # QSA reservation tests
 
 Run `python -m pytest -q tests/test_qwen4_qsa_reserved_capacity.py` to check QSA capacity reservations.
