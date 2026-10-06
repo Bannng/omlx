@@ -97,11 +97,11 @@ Outputs of the short prompts are byte-identical before and after; the wider pref
 
 An over-capacity prefill call runs the experts it finds resident before its misses, so a miss only evicts an expert whose routes have already run, and each resident expert is used without a second read. Its chunks also take power-of-two route counts where possible, so the padding that keeps prefill buffer sizes reusable adds no rows; an expert whose routes span two adjacent chunks is installed once. Measured on `Qwen3.8-Flash-Next-oQ4e` on an M3 Ultra, 32,768-token prompt with no cached prefix, 8192-token prefill steps, Lightning MTP, greedy, one request per side after an 8192-token warm-up, the same output tokens on both sides. Prefill throughput is prompt tokens divided by time to first token:
 
-| residency, expert source | prefill before | prefill after | expert reads before | expert reads after |
-|---|---|---|---|---|
-| 50%, SSD (`F_NOCACHE`) | 396 tok/s | 636 tok/s | 233 GiB | 122 GiB |
-| 50%, page cache | 517 tok/s | 751 tok/s | 233 GiB | 122 GiB |
-| 10%, SSD (`F_NOCACHE`) | 422 tok/s | 466 tok/s | 251 GiB | 227 GiB |
+| residency, expert source | prefill before | prefill after | change | expert reads before | expert reads after |
+|---|---|---|---|---|---|
+| 50%, SSD (`F_NOCACHE`) | 396 tok/s | 636 tok/s | +61% | 233 GiB | 122 GiB |
+| 50%, page cache | 517 tok/s | 751 tok/s | +45% | 233 GiB | 122 GiB |
+| 10%, SSD (`F_NOCACHE`) | 422 tok/s | 466 tok/s | +10% | 251 GiB | 227 GiB |
 
 When offload is active, the server logs one line per finished request with the expert cache counters accrued while it ran: `MoE offload: request=<id> hit_rate=... hits=... misses=... fetched=... MB prompt=... output=...`. The counters belong to the engine, so requests that run at the same time share them.
 
