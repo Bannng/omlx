@@ -34,6 +34,7 @@ from omlx.patches.glm_moe_dsa.sparse_mla import (
 )
 from omlx.patches.qwen35_verify_qmm import _is_armed as _verify_qmm_armed
 from omlx.patches.qwen35_verify_qmm import is_row_exact_armed as _row_exact_armed
+from omlx.patches.qwen35_verify_qmm import takes_verify_route as _takes_verify_route
 from omlx.patches.glm_moe_dsa.indexer_nax import (
     indexer_scores_nax,
     max_rows_per_call,
@@ -1730,9 +1731,12 @@ class Glm5NextMoE(nn.Module):
             y = dk.moe_down_combine(act, routes, weights, sw.down_proj, shared.down_proj)
         else:
             fused = None
-            # Armed verify routes take the shared expert's own projections
-            # off the multi-row qmv_wide arithmetic, so it runs as the module.
-            if shared is not None and not verify_qmm_routed(T):
+            # A shared projection on an armed verify route leaves the
+            # multi-row qmv_wide arithmetic, so the expert runs as the module.
+            if shared is not None and not any(
+                _takes_verify_route(p, T, x.dtype)
+                for p in (shared.gate_proj, shared.up_proj, shared.down_proj)
+            ):
                 # One dispatch also computes the shared expert's gate/up with
                 # the multi-row qmv_wide arithmetic its own T > 1 call uses.
                 fused = dk.moe_gate_up_swiglu(
