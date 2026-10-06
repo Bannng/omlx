@@ -446,6 +446,33 @@ def test_openjev_shared_prefix_matches_independent_readouts(tiny_backbone, monke
     json.dumps(shared)
 
 
+def test_text_backbone_matches_patched_mlx_lm_logits():
+    from mlx_lm.models.qwen3_5 import Model, ModelArgs
+
+    from omlx.patches.mlx_lm_mtp import apply_mlx_lm_mtp_patch
+
+    # The MTP patch makes the inner text model return pre-norm hidden states.
+    assert apply_mlx_lm_mtp_patch()
+    mx.random.seed(3)
+    model = Model(
+        ModelArgs.from_dict({"model_type": "qwen3_5", "text_config": _TEXT_CONFIG})
+    )
+    mx.eval(model.parameters())
+    backbone = DecisionBackbone("tiny-text")
+    backbone.model = model
+    backbone._text_model = model.language_model.model
+    backbone._lm_head = model.language_model.lm_head
+    ids = np.arange(5, 25, dtype=np.int32)
+    embeds, positions = backbone.embed(ids)
+    hidden = _drain(
+        backbone.prefill(
+            ids, embeds, positions, backbone.make_cache(), lambda: 7, keep_all=False
+        )
+    )
+    expected = model(mx.array(ids)[None])[0, -1]
+    assert np.allclose(np.array(backbone.logits(hidden)), np.array(expected), atol=1e-4)
+
+
 def test_openjev_requires_instructions():
     model = openjev.OpenJevModel("unused")
     model.backbone.tokenizer = _CharTokenizer()

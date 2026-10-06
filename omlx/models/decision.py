@@ -203,7 +203,13 @@ class DecisionBackbone:
             return self._text_model(
                 tokens, inputs_embeds=embeds, cache=cache, position_ids=positions
             )
-        return self._text_model(tokens, cache=cache, input_embeddings=embeds)
+        hidden = self._text_model(tokens, cache=cache, input_embeddings=embeds)
+        # The oMLX MTP patch makes the mlx-lm text model return pre-norm hidden
+        # states and leaves the final norm to TextModel. It patches the class,
+        # so it can be installed after this model was loaded.
+        if getattr(type(self._text_model).__call__, "_omlx_mtp_call_marker", False):
+            hidden = self._text_model.norm(hidden)
+        return hidden
 
     def logits(self, hidden: mx.array) -> mx.array:
         if isinstance(self._lm_head, nn.Embedding | nn.QuantizedEmbedding):
