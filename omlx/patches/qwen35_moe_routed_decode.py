@@ -223,10 +223,10 @@ METAL_FUNC void qmv_rows(
 _COMMON = r"""
 using namespace metal;
 
-// MLX 0.32.2 Sigmoid, evaluated in T as the compiled swiglu does.
+// MLX 0.32.3 Sigmoid, evaluated in T as the compiled swiglu does.
 template <typename U>
 inline U omlx_mlx_sigmoid(U x) {
-  auto y = 1 / (1 + metal::exp(metal::abs(x)));
+  auto y = 1 / (1 + metal::precise::exp(metal::abs(x)));
   return (x < 0) ? y : 1 - y;
 }
 

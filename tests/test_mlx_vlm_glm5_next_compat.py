@@ -4025,27 +4025,27 @@ def test_kda_decode_step_is_bitwise_reference(gate_bits, monkeypatch):
 
 
 @pytest.mark.usefixtures("glm5_fused_decode")
-def test_eager_sigmoid_probe_reproduces_mx_sigmoid():
-    for dtype in (mx.bfloat16, mx.float32):
-        precise = dk.eager_sigmoid_precise(dtype)
-        assert precise in (True, False), dtype
+def test_glm_sigmoid_reproduces_eager_and_compiled_mx_sigmoid():
+    compiled = mx.compile(mx.sigmoid)
+    for dtype in (mx.bfloat16, mx.float16, mx.float32):
         x = (mx.random.normal((4096,)) * 6).astype(dtype)
         kernel = mx.fast.metal_kernel(
-            name="glm5_sigmoid_probe",
+            name="glm5_sigmoid_check",
             input_names=["x"],
-            output_names=["default_out", "precise_out"],
+            output_names=["out"],
             header=dk._QMV_HEADER,
-            source=dk._SIGMOID_PROBE_SOURCE,
+            source="out[thread_position_in_grid.x] = glm_sigmoid<T>(x[thread_position_in_grid.x]);",
         )
-        default, exact = kernel(
+        (out,) = kernel(
             inputs=[x],
             template=[("T", dtype)],
             grid=(x.size, 1, 1),
             threadgroup=(256, 1, 1),
-            output_shapes=[x.shape] * 2,
-            output_dtypes=[dtype] * 2,
+            output_shapes=[x.shape],
+            output_dtypes=[dtype],
         )
-        assert _mismatches(exact if precise else default, mx.sigmoid(x)) == 0
+        assert _mismatches(out, mx.sigmoid(x)) == 0, dtype
+        assert _mismatches(out, compiled(x)) == 0, dtype
 
 
 @pytest.mark.usefixtures("glm5_fused_decode")
@@ -4053,10 +4053,8 @@ def test_eager_sigmoid_probe_reproduces_mx_sigmoid():
 @pytest.mark.parametrize("seed", [20, 24, 28])
 def test_kda_decode_step_seed_sweep_is_bitwise_reference(seed, gate_bits, monkeypatch):
     """The reference's beta and output-gate sigmoids are eager mx.sigmoid
-    kernels, whose exp differs between MLX builds (precise in the release
-    wheel's precompiled kernels); several of these seeds differed in a few
-    outputs (and then in the recurrent state) when the kernel always used
-    the runtime-compiled exp."""
+    kernels; several of these seeds differed in a few outputs (and then in
+    the recurrent state) when the kernel's exp did not match MLX's Sigmoid."""
     language = _language()
     layer = _kda_layer(seed=seed, gate_bits=gate_bits)
     fused_cache, reference_cache = _arrays_cache(), _arrays_cache()

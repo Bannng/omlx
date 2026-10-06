@@ -1841,11 +1841,6 @@ class Glm5NextDecoderLayer(nn.Module):
         cache: Optional[Any] = None,
         defer: bool = False,
     ) -> mx.array:
-        if _DECODE_FUSION:
-            # Settle (eagerly, once) how MLX's eager fp32 sigmoid evaluates;
-            # the fused router inside the compiled FFN block follows it and
-            # cannot probe while being traced.
-            _decode_kernels.eager_sigmoid_precise(mx.float32)
         # One-token decode can leave this layer's last HC expand to the next
         # layer's fused HC pre (``defer``: returns an _HCDeferred); an
         # _HCDeferred input is always accepted.
