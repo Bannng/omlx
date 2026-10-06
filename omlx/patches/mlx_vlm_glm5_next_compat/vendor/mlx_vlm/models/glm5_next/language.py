@@ -1730,7 +1730,9 @@ class Glm5NextMoE(nn.Module):
             y = dk.moe_down_combine(act, routes, weights, sw.down_proj, shared.down_proj)
         else:
             fused = None
-            if shared is not None:
+            # Armed verify routes take the shared expert's own projections
+            # off the multi-row qmv_wide arithmetic, so it runs as the module.
+            if shared is not None and not verify_qmm_routed(T):
                 # One dispatch also computes the shared expert's gate/up with
                 # the multi-row qmv_wide arithmetic its own T > 1 call uses.
                 fused = dk.moe_gate_up_swiglu(
