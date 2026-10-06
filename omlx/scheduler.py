@@ -1644,28 +1644,6 @@ def _mimo_fused_full_attention() -> bool:
         return False
 
 
-def _oversized_sorted_gather_ok() -> bool:
-    """True when a sorted gather_qmm above 32768 rows runs as one dispatch.
-
-    Stock mlx 0.32.2's sorted NAX kernel overflows past 32768 rows, so the
-    m5_gather_qmm reroute splits such calls into slices plus a copy unless
-    oMLX's JIT gather (m5_gather_qmm_nax) or the native NAX gather is there.
-    """
-    try:
-        from .patches import m5_gather_qmm_nax
-
-        if m5_gather_qmm_nax.enabled():
-            return True
-    except ImportError:
-        pass
-    try:
-        from .patches.m5_gather_qmm import _resolve_native_gather
-
-        return _resolve_native_gather() is not None
-    except Exception:
-        return False
-
-
 @dataclass
 class SchedulerConfig:
     """Configuration for the scheduler."""
@@ -3006,14 +2984,14 @@ class Scheduler:
                 # attention: otherwise its 9 full-attention layers (192/128
                 # head dims) materialise [heads, chunk, context] scores and
                 # the wider chunk is slower. On NAX GPUs 8192 (~256 rows per
-                # expert) lifts the expert GEMMs further when the >32768-row
+                # expert) lifts the expert GEMMs further: the >32768-row
                 # sorted gather runs as one dispatch (the fused attention's
                 # causal work is the same in any chunking).
                 if (
                     get_system_memory() >= 128 * 1024**3
                     and _mimo_fused_full_attention()
                 ):
-                    if is_nax_available() and _oversized_sorted_gather_ok():
+                    if is_nax_available():
                         return self._MIMO_NAX_PREFILL_FLOOR
                     return 4096
         except Exception:

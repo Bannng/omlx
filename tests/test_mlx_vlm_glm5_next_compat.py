@@ -4548,11 +4548,11 @@ def test_decode_early_eval_only_schedules(every, monkeypatch):
 @pytest.mark.usefixtures("glm5_fused_decode")
 def test_compiled_decode_releases_the_weights_when_the_model_is_dropped():
     """One-token steps compile each layer's FFN half around multi-output fused
-    kernels (router logits, route-selecting gate/up, HC pre/post). MLX 0.32.2
-    leaks such intermediates of a compiled trace with everything they reference
-    (ml-explore/mlx#4453): with the weights as trace constants, dropping the
-    model left MoE layers' routed gate/up experts allocated (~73 MB per layer
-    here, ~2.5 GB on GLM-5.3). Runs on a worker thread whose final
+    kernels (router logits, route-selecting gate/up, HC pre/post). A compiled
+    trace that leaks such intermediates (ml-explore/mlx#4453, fixed in MLX
+    0.32.3) keeps the weights it captured as constants, so dropping the model
+    left MoE layers' routed gate/up experts allocated (~73 MB per layer here,
+    ~2.5 GB on GLM-5.3). Runs on a worker thread whose final
     ``mx.clear_streams()`` drops its compile cache, like an engine thread."""
     import gc
     import threading
@@ -4563,8 +4563,8 @@ def test_compiled_decode_releases_the_weights_when_the_model_is_dropped():
         gc.collect()
         mx.clear_cache()
         base = mx.get_active_memory()
-        # Pausing the collector makes the groups MLX 0.32.2 leaks deterministic
-        # here (one to three MoE layers' gate/up experts without the fix).
+        # Pausing the collector makes such a leak deterministic here (one to
+        # three MoE layers' gate/up experts).
         gc.disable()
         try:
             run()
@@ -4600,7 +4600,7 @@ def test_compiled_decode_releases_the_weights_when_the_model_is_dropped():
 
 
 # ---------------------------------------------------------------------------
-# Compiled decode FFN (weights traced as inputs)
+# Compiled decode FFN
 
 
 _CFFN_WORDS = 1 << 21  # 8 MB of float32 per weight: a pinned weight is unmistakable
@@ -4687,39 +4687,7 @@ def _leaked_bytes(compile_fn) -> int:
     return result["leak"]
 
 
-def test_compile_ffn_block_releases_the_layer_weights():
-    language = _language()
-    leak = _leaked_bytes(
-        lambda layer: language.compile_ffn_block(layer, layer._ffn_block)
-    )
+def test_compiled_ffn_block_releases_the_layer_weights():
+    leak = _leaked_bytes(lambda layer: mx.compile(layer._ffn_block))
     # A pinned weight would leave 8 MB+; only tiny trace constants may remain.
     assert leak < (64 << 10), f"{leak} bytes still active after the layer was dropped"
-
-
-def test_compile_ffn_block_matches_eager_and_plain_compile():
-    language = _language()
-    layer = _CffnLayer()
-    x = mx.arange(8, dtype=mx.float32)
-    eager = layer._ffn_block(x)
-    plain = mx.compile(layer._ffn_block)(x)
-    fixed = language.compile_ffn_block(layer, layer._ffn_block)
-    first, second = fixed(x), fixed(x + 1)
-    mx.eval(eager, plain, first, second)
-    assert mx.array_equal(first, eager).item()
-    assert mx.array_equal(first, plain).item()
-    assert mx.array_equal(second, layer._ffn_block(x + 1)).item()
-
-
-def test_compile_ffn_block_keeps_module_arrays_when_the_trace_raises():
-    language = _language()
-    layer = _CffnLayer()
-    before = [layer.ffn_hc.weight, layer.mlp.weight, layer.mlp.experts[0].weight]
-
-    def broken(x):
-        raise RuntimeError("trace failed")
-
-    with pytest.raises(RuntimeError, match="trace failed"):
-        language.compile_ffn_block(layer, broken)(mx.ones((8,)))
-    after = [layer.ffn_hc.weight, layer.mlp.weight, layer.mlp.experts[0].weight]
-    assert all(a is b for a, b in zip(before, after))
-    mx.eval(layer._ffn_block(mx.ones((8,))))

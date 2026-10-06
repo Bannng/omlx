@@ -396,9 +396,7 @@ def _patch_decoder_layer(g5_lang: Any) -> None:
         ):
             _check_verify_router(g5_lang, self, x)
             if self._ffn_c is None:
-                # The vendor's compile keeps the layer's weights out of the
-                # trace's constants (a leaked trace would pin them in memory).
-                self._ffn_c = g5_lang.compile_ffn_block(self, self._ffn_block)
+                self._ffn_c = mx.compile(self._ffn_block)
             return self._ffn_c(x)
         return self._ffn_block(x)
 

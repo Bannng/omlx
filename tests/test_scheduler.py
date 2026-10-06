@@ -3945,27 +3945,21 @@ class TestSchedulerRotatingBlockAlignment:
         assert scheduler.config.paged_cache_block_size == expected
 
     @pytest.mark.parametrize(
-        "memory_gb,nax,fused,gather,expected",
+        "memory_gb,nax,fused,expected",
         [
-            (128, True, True, True, 8192),
-            (256, True, True, False, 4096),  # >32768-row gathers would be split
-            (256, False, True, True, 4096),
-            (256, True, False, True, 0),  # unfused 192/128 attention
-            (96, True, True, True, 0),
+            (128, True, True, 8192),
+            (256, False, True, 4096),
+            (256, True, False, 0),  # unfused 192/128 attention
+            (96, True, True, 0),
         ],
     )
-    def test_mimo_prefill_floor(
-        self, mock_tokenizer, memory_gb, nax, fused, gather, expected
-    ):
+    def test_mimo_prefill_floor(self, mock_tokenizer, memory_gb, nax, fused, expected):
         scheduler = self._mimo_scheduler(mock_tokenizer)
         with (
             patch("omlx.settings.get_system_memory", return_value=memory_gb * 1024**3),
             patch("omlx.custom_kernels.nax.is_nax_available", return_value=nax),
             patch.object(
                 scheduler_module, "_mimo_fused_full_attention", return_value=fused
-            ),
-            patch.object(
-                scheduler_module, "_oversized_sorted_gather_ok", return_value=gather
             ),
         ):
             assert scheduler._detect_qwen35_prefill_floor() == expected
