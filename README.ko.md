@@ -314,7 +314,7 @@ mlx-lm에서 사용 가능한 모든 함수 호출 형식, JSON 스키마 검증
 | LLM | [mlx-lm](https://github.com/ml-explore/mlx-lm)이 지원하는 모든 모델 |
 | VLM | Qwen3.5 시리즈, GLM-4V, Pixtral 및 기타 [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) 모델 |
 | OCR | DeepSeek-OCR, DOTS-OCR, GLM-OCR |
-| 임베딩 | BERT, BGE-M3, ModernBERT |
+| 임베딩 | BERT, BGE-M3, ModernBERT, EmbeddingGemma 2 |
 | 리랭커 | ModernBERT, XLM-RoBERTa |
 | Decision | Clef, Clef-Flash, OpenJev |
 

@@ -277,7 +277,7 @@ Les modèles sont auto-détectés par type. Vous pouvez aussi télécharger des 
 | LLM | Tout modèle supporté par [mlx-lm](https://github.com/ml-explore/mlx-lm) |
 | VLM | Série Qwen3.5, GLM-4V, Pixtral, et autres modèles [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) |
 | OCR | DeepSeek-OCR, DOTS-OCR, GLM-OCR |
-| Embedding | BERT, BGE-M3, ModernBERT |
+| Embedding | BERT, BGE-M3, ModernBERT, EmbeddingGemma 2 |
 | Reranker | ModernBERT, XLM-RoBERTa |
 | Decision | Clef, Clef-Flash, OpenJev |
 

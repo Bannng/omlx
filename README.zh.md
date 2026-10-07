@@ -277,7 +277,7 @@ OpenAI 和 Anthropic API 的直接替代品。支持流式使用统计（`stream
 | LLM | [mlx-lm](https://github.com/ml-explore/mlx-lm) 支持的所有模型 |
 | VLM | Qwen3.5 系列、GLM-4V、Pixtral 及其他 [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) 模型 |
 | OCR | DeepSeek-OCR、DOTS-OCR、GLM-OCR |
-| 嵌入 | BERT、BGE-M3、ModernBERT |
+| 嵌入 | BERT、BGE-M3、ModernBERT、EmbeddingGemma 2 |
 | 重排序 | ModernBERT、XLM-RoBERTa |
 | 决策 | Clef、Clef-Flash、OpenJev |
 
