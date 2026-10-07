@@ -239,6 +239,7 @@ OpenAIとAnthropic APIのドロップイン代替です。ストリーミング�
 | `POST /v1/rerank` | ドキュメントリランキング |
 | `POST /v1/systemone` | Decision モデルによる型付き判定 (TypeSafe System One) |
 | `GET /v1/models` | 利用可能なモデル一覧 |
+| `POST /tokenize`, `POST /detokenize` | vLLM 互換トークナイザー API（`/v1` 配下でも利用可） |
 
 ### ツール呼び出し＆構造化出力
 

@@ -276,6 +276,7 @@ OpenAI 및 Anthropic API를 그대로 대체합니다. 스트리밍 사용량 �
 | `POST /v1/rerank` | 문서 리랭킹 |
 | `POST /v1/systemone` | Decision 모델의 타입별 판단 (TypeSafe System One) |
 | `GET /v1/models` | 사용 가능한 모델 목록 |
+| `POST /tokenize`, `POST /detokenize` | vLLM 호환 토크나이저 API (`/v1` 경로도 지원) |
 
 ### Tool calling & 구조화된 출력
 

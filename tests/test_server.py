@@ -555,6 +555,7 @@ class TestExceptionHandlers:
                 "messages[0].content",
             ),
             ("/v1/responses", {"input": "hi \ud83d"}, "input"),
+            ("/tokenize", {"prompt": "hi \ud83d"}, "prompt"),
         ],
     )
     def test_lone_surrogate_returns_400(self, client, path, body, param):

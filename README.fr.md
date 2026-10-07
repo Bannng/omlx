@@ -239,6 +239,7 @@ Remplacement direct des APIs OpenAI et Anthropic. Supporte les statistiques d'us
 | `POST /v1/rerank` | Reranking de documents |
 | `POST /v1/systemone` | Décisions typées avec les modèles de décision (TypeSafe System One) |
 | `GET /v1/models` | Lister les modèles disponibles |
+| `POST /tokenize`, `POST /detokenize` | API de tokenisation compatible vLLM (aussi sous `/v1`) |
 
 ### Appel d'outils et sorties structurées
 
