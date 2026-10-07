@@ -46,7 +46,7 @@ jobs:
       - name: Run unit tests
         run: >-
           python -m pytest tests/ -m "not slow and not integration"
-          -n 3 --dist loadfile
+          -n 3 --dist loadgroup
           --durations=50 --junitxml=test-results.xml
 
       - name: Upload test results
