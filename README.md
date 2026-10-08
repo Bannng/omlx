@@ -60,7 +60,8 @@ Download the `.dmg` from [Releases](https://github.com/jundot/omlx/releases), dr
 
 ```bash
 brew tap jundot/omlx https://github.com/jundot/omlx
-brew install jundot/omlx/omlx
+brew install jundot/omlx/omlx --with-custom-kernel   # With native custom kernels (needs full Xcode)
+# No full Xcode? brew install jundot/omlx/omlx installs without the kernels
 
 # Upgrade to the latest version
 brew update && brew upgrade omlx
@@ -72,18 +73,13 @@ omlx start
 /opt/homebrew/opt/omlx/libexec/bin/pip install mcp
 ```
 
-Optional GLM-5.2 / MiniMax M3 native custom kernels currently require a HEAD build:
-
-```bash
-brew install jundot/omlx/omlx --HEAD --with-custom-kernel
-```
-
 ### From Source
 
 ```bash
 git clone https://github.com/jundot/omlx.git
 cd omlx
 make install                # Editable install with the web UI and native custom kernels
+# No full Xcode? make install-no-kernels installs without the kernels
 make mcp                    # Optional: MCP (Model Context Protocol) support
 ```
 
@@ -99,8 +95,8 @@ Requires macOS 15.0+ (Sequoia), Python 3.11–3.13, and Apple Silicon (M1/M2/M3/
 > unable to find utility "metal"`). Without Xcode, use the official DMG, which
 > ships the kernels precompiled, or `make install-no-kernels`. A plain
 > `pip install -e .` also skips them. `make kernels` rebuilds only the kernels
-> from scratch. Homebrew can build them with `brew install jundot/omlx/omlx --HEAD
-> --with-custom-kernel`, which also needs full Xcode. To verify any install:
+> from scratch. Homebrew builds them with `--with-custom-kernel`, which also needs
+> full Xcode. To verify any install:
 >
 > ```bash
 > python -c "from omlx.custom_kernels import native_kernel_status; print(native_kernel_status())"

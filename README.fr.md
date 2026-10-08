@@ -61,7 +61,8 @@ Téléchargez le `.dmg` depuis les [Releases](https://github.com/jundot/omlx/rel
 
 ```bash
 brew tap jundot/omlx https://github.com/jundot/omlx
-brew install omlx
+brew install omlx --with-custom-kernel   # Avec les kernels natifs (Xcode complet requis)
+# Sans Xcode complet : brew install omlx installe sans les kernels
 
 # Mettre à jour vers la dernière version
 brew update && brew upgrade omlx
@@ -73,18 +74,13 @@ brew services start omlx
 /opt/homebrew/opt/omlx/libexec/bin/pip install mcp
 ```
 
-Les kernels natifs personnalisés optionnels pour GLM-5.2 / MiniMax M3 nécessitent actuellement un build HEAD :
-
-```bash
-brew install omlx --HEAD --with-custom-kernel
-```
-
 ### Depuis les sources
 
 ```bash
 git clone https://github.com/jundot/omlx.git
 cd omlx
 make install                # Installation editable avec l'interface web et les kernels natifs
+# Sans Xcode complet : make install-no-kernels installe sans les kernels
 make mcp                    # Optionnel : ajoute le support MCP (Model Context Protocol)
 ```
 

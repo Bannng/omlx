@@ -60,7 +60,8 @@
 
 ```bash
 brew tap jundot/omlx https://github.com/jundot/omlx
-brew install omlx
+brew install omlx --with-custom-kernel   # 包含原生自定义内核（需要完整 Xcode）
+# 没有完整 Xcode 时，用 brew install omlx 安装不含内核的版本
 
 # 升级到最新版本
 brew update && brew upgrade omlx
@@ -72,18 +73,13 @@ brew services start omlx
 /opt/homebrew/opt/omlx/libexec/bin/pip install mcp
 ```
 
-可选的 GLM-5.2 / MiniMax M3 原生自定义内核目前需要 HEAD 构建：
-
-```bash
-brew install omlx --HEAD --with-custom-kernel
-```
-
 ### 从源码安装
 
 ```bash
 git clone https://github.com/jundot/omlx.git
 cd omlx
 make install                # 以 editable 模式安装（含 Web UI 和原生自定义内核）
+# 没有完整 Xcode 时，用 make install-no-kernels 安装不含内核的版本
 make mcp                    # 可选：添加 MCP（Model Context Protocol）支持
 ```
 

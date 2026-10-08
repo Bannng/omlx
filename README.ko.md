@@ -60,7 +60,8 @@
 
 ```bash
 brew tap jundot/omlx https://github.com/jundot/omlx
-brew install jundot/omlx/omlx
+brew install jundot/omlx/omlx --with-custom-kernel   # 네이티브 커스텀 커널 포함 (전체 Xcode 필요)
+# 전체 Xcode가 없다면 brew install jundot/omlx/omlx 로 커널 없이 설치
 
 # 최신 버전으로 업그레이드
 brew update && brew upgrade omlx
@@ -72,18 +73,13 @@ omlx start
 /opt/homebrew/opt/omlx/libexec/bin/pip install mcp
 ```
 
-선택사항인 GLM-5.2 / MiniMax M3 네이티브 커스텀 커널은 현재 HEAD 빌드가 필요합니다:
-
-```bash
-brew install jundot/omlx/omlx --HEAD --with-custom-kernel
-```
-
 ### 소스에서 설치
 
 ```bash
 git clone https://github.com/jundot/omlx.git
 cd omlx
 make install                # 웹 UI와 네이티브 커스텀 커널까지 editable 설치
+# 전체 Xcode가 없다면 make install-no-kernels 로 커널 없이 설치
 make mcp                    # 선택: MCP (Model Context Protocol) 지원 추가
 ```
 
@@ -99,8 +95,8 @@ macOS 15.0+ (Sequoia), Python 3.11–3.13, Apple Silicon (M1/M2/M3/M4/M5)이 필
 > unable to find utility "metal"`). Xcode가 없다면 커널이 미리 컴파일되어 포함된
 > 공식 DMG를 쓰거나 `make install-no-kernels` 를 사용하세요. 일반 `pip install -e .`
 > 도 커널을 빌드하지 않습니다. `make kernels` 는 커널만 처음부터 다시 빌드합니다.
-> Homebrew에서는 `brew install jundot/omlx/omlx --HEAD --with-custom-kernel` 로
-> 빌드할 수 있고, 이 빌드에도 전체 Xcode가 필요합니다. 어떤 설치든 확인하려면:
+> Homebrew에서는 `--with-custom-kernel` 로 빌드하며, 이 빌드에도 전체 Xcode가
+> 필요합니다. 어떤 설치든 확인하려면:
 >
 > ```bash
 > python -c "from omlx.custom_kernels import native_kernel_status; print(native_kernel_status())"

@@ -60,7 +60,8 @@
 
 ```bash
 brew tap jundot/omlx https://github.com/jundot/omlx
-brew install omlx
+brew install omlx --with-custom-kernel   # ネイティブカスタムカーネル込み（フルXcodeが必要）
+# フルXcodeがない場合は brew install omlx でカーネルなしでインストール
 
 # 最新バージョンへアップグレード
 brew update && brew upgrade omlx
@@ -72,18 +73,13 @@ brew services start omlx
 /opt/homebrew/opt/omlx/libexec/bin/pip install mcp
 ```
 
-オプションの GLM-5.2 / MiniMax M3 ネイティブカスタムカーネルは、現在 HEAD ビルドが必要です:
-
-```bash
-brew install omlx --HEAD --with-custom-kernel
-```
-
 ### ソースからインストール
 
 ```bash
 git clone https://github.com/jundot/omlx.git
 cd omlx
 make install                # Web UIとネイティブカスタムカーネルを含むeditableインストール
+# フルXcodeがない場合は make install-no-kernels でカーネルなしでインストール
 make mcp                    # オプション: MCP（Model Context Protocol）サポートを追加
 ```
 
