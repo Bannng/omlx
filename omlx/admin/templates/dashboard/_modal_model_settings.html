@@ -9,11 +9,11 @@
 
         <!-- Modal -->
         <div class="flex min-h-full items-center justify-center p-4">
-            <div class="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-4xl p-4 sm:p-8"
+            <div class="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden"
                  @click.stop>
 
-                <!-- Header -->
-                <div class="flex items-start justify-between gap-4 mb-6">
+                <!-- Title bar; the body scrolls below it and the actions stay pinned -->
+                <div class="flex-shrink-0 flex items-start justify-between gap-4 px-4 sm:px-8 py-4 sm:py-5 bg-neutral-50 border-b border-neutral-200">
                     <div class="min-w-0">
                         <h3 class="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1">{{ t('modal.model_settings.section_label') }}</h3>
                         <h4 id="model-settings-modal-title" tabindex="-1" autofocus class="text-xl font-bold tracking-tight text-neutral-900 break-words" x-text="selectedModel?.display_name || selectedModel?.name || selectedModel?.id"></h4>
@@ -38,6 +38,7 @@
                     </div>
                 </div>
 
+                <div class="flex-1 min-h-0 overflow-y-auto px-4 sm:px-8 py-6">
                 <!-- Profiles / Templates / Presets section -->
                 <div class="mb-6 p-4 bg-neutral-50 rounded-xl border border-neutral-200"
                      x-show="!modelSettings.is_diffusion_model" x-cloak
@@ -447,7 +448,7 @@
                         <div class="overflow-y-auto max-h-[28rem] space-y-4 pr-1"
                              x-show="!selectedModel?.model_type || selectedModel.model_type === 'llm' || selectedModel.model_type === 'vlm'">
                             <!-- Enable Thinking -->
-                            <div class="p-4 bg-neutral-50 rounded-xl space-y-3"
+                            <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-3"
                                  x-show="!modelSettings.is_diffusion_model" x-cloak>
                                 <div class="flex items-start justify-between gap-3">
                                     <div class="min-w-0">
@@ -473,7 +474,7 @@
                             </div>
 
                             <!-- Qwen4 PLE SSD Offload -->
-                            <div class="p-4 bg-neutral-50 rounded-xl space-y-2"
+                            <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-2"
                                  x-show="modelSettings.qwen4_ple_ssd_offload_supported" x-cloak>
                                 <div class="flex items-start justify-between gap-3">
                                     <div class="min-w-0">
@@ -497,7 +498,7 @@
                             </div>
 
                             <!-- DeepSeek V4.1 CED Prefill -->
-                            <div class="p-4 bg-neutral-50 rounded-xl"
+                            <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl"
                                  x-show="modelSettings.deepseek_v41_ced_prefill_supported" x-cloak>
                                 <div class="flex items-start justify-between gap-3">
                                     <div class="min-w-0">
@@ -517,7 +518,7 @@
                             </div>
 
                             <!-- DeepSeek V4.1 Engram SSD Offload -->
-                            <div class="p-4 bg-neutral-50 rounded-xl space-y-2"
+                            <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-2"
                                  x-show="modelSettings.deepseek_v41_engram_ssd_offload_supported" x-cloak>
                                 <div class="flex items-start justify-between gap-3">
                                     <div class="min-w-0">
@@ -541,7 +542,7 @@
                             </div>
 
                             <!-- Thinking Budget -->
-                            <div class="p-4 bg-neutral-50 rounded-xl space-y-3"
+                            <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-3"
                                  x-show="!modelSettings.is_diffusion_model" x-cloak>
                                 <div class="flex items-start justify-between gap-3">
                                     <div class="min-w-0">
@@ -562,7 +563,7 @@
                             </div>
 
                             <!-- Guided Grammar -->
-                            <div class="p-4 bg-neutral-50 rounded-xl space-y-3"
+                            <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-3"
                                  x-show="!modelSettings.is_diffusion_model" x-cloak>
                                 <div class="flex items-start justify-between gap-3">
                                     <div class="min-w-0">
@@ -591,7 +592,7 @@
                             </div>
 
                             <!-- Limit Tool Result Tokens -->
-                            <div class="p-4 bg-neutral-50 rounded-xl space-y-3"
+                            <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-3"
                                  x-show="!modelSettings.is_diffusion_model" x-cloak>
                                 <div class="flex items-start justify-between gap-3">
                                     <div class="min-w-0">
@@ -612,7 +613,7 @@
                             </div>
 
                             <!-- Force Sampling -->
-                            <div class="p-4 bg-neutral-50 rounded-xl"
+                            <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl"
                                  x-show="!modelSettings.is_diffusion_model" x-cloak>
                                 <div class="flex items-start justify-between gap-3">
                                     <div class="min-w-0">
@@ -645,7 +646,7 @@
                             </div>
 
                             <!-- Chat Template Kwargs -->
-                            <div class="p-4 bg-neutral-50 rounded-xl space-y-3">
+                            <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-3">
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <span class="text-sm font-medium text-neutral-700">{{ t('modal.model_settings.chat_template_kwargs') }}</span>
@@ -762,7 +763,7 @@
                                 <h4 class="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-3">{{ t('modal.model_settings.acceleration_label') }}</h4>
 
                                 <!-- Lightning MTP (built-in MTP head speculative decoding) -->
-                                <div class="p-4 bg-neutral-50 rounded-xl space-y-3 mb-3">
+                                <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-3 mb-3">
                                     <div class="flex items-start justify-between gap-3">
                                         <div class="min-w-0">
                                             <span class="text-sm font-medium text-neutral-700">{{ t('modal.model_settings.lightning_mtp') }}</span>
@@ -816,7 +817,7 @@
                                 </div>
 
                                 <!-- DFlash -->
-                                <div class="p-4 bg-neutral-50 rounded-xl space-y-3 mb-3">
+                                <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-3 mb-3">
                                     <div class="flex items-start justify-between gap-3">
                                         <div class="min-w-0">
                                             <span class="text-sm font-medium text-neutral-700">{{ t('modal.model_settings.dflash') }}</span>
@@ -991,7 +992,7 @@
                                 </div>
 
                                 <!-- VLM MTP (mlx-vlm 191d7c8+, gemma4_assistant drafter) -->
-                                <div class="p-4 bg-neutral-50 rounded-xl space-y-3 mb-6">
+                                <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-3 mb-6">
                                     <div class="flex items-start justify-between gap-3">
                                         <div class="min-w-0">
                                             <span class="text-sm font-medium text-neutral-700">{{ t('modal.model_settings.vlm_mtp') }}</span>
@@ -1038,7 +1039,7 @@
 
                                 <!-- Qwen 3.5/3.6/3.8 oQ INT8-activation prefill kernels -->
                                 <template x-if="isQwenOqA8Model(selectedModel)">
-                                    <div class="p-4 bg-neutral-50 rounded-xl space-y-4 mb-3">
+                                    <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-4 mb-3">
                                         <div class="flex items-start justify-between gap-3">
                                             <div class="min-w-0">
                                                 <span class="text-sm font-medium text-neutral-700">{{ t('modal.model_settings.qwen_oq_a8') }}</span>
@@ -1069,7 +1070,7 @@
 
                                 <!-- Qwen 3.5/3.6/3.8 private ANE/GPU prompt processing -->
                                 <template x-if="selectedModel?.ane_prefill_backend === 'qwen'">
-                                    <div class="p-4 bg-neutral-50 rounded-xl space-y-4 mb-3">
+                                    <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-4 mb-3">
                                         <div class="flex items-start justify-between gap-3">
                                             <div class="min-w-0">
                                                 <span class="text-sm font-medium text-neutral-700">{{ t('modal.model_settings.qwen_ane') }}</span>
@@ -1333,7 +1334,7 @@
                                 </template>
 
                                 <template x-if="selectedModel?.ane_prefill_backend === 'k2'">
-                                    <div class="p-4 bg-neutral-50 rounded-xl space-y-4 mb-3">
+                                    <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-4 mb-3">
                                         <label class="flex items-center justify-between gap-3 text-sm font-medium">
                                             <span>{{ t('modal.model_settings.k2_ane') }}</span>
                                             <input type="checkbox" x-model="modelSettings.qwen35_ane_prefill_enabled" class="rounded border-neutral-300">
@@ -1363,7 +1364,7 @@
                                 </template>
 
                                 <!-- TurboQuant KV Cache -->
-                                <div class="p-4 bg-neutral-50 rounded-xl space-y-3 mb-3">
+                                <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-3 mb-3">
                                     <div class="flex items-start justify-between gap-3">
                                         <div class="min-w-0">
                                             <span class="text-sm font-medium text-neutral-700">{{ t('modal.model_settings.turboquant_kv') }}</span>
@@ -1399,7 +1400,7 @@
 
                                 <!-- MoE Expert Offload -->
                                 <template x-if="selectedModel?.moe_expert_offload_supported === true">
-                                    <div class="p-4 bg-neutral-50 rounded-xl space-y-3 mb-3">
+                                    <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-3 mb-3">
                                         <div class="flex items-start justify-between gap-3">
                                             <div class="min-w-0">
                                                 <span class="text-sm font-medium text-neutral-700">{{ t('modal.model_settings.moe_expert_offload') }}</span>
@@ -1439,7 +1440,7 @@
 
                                 <!-- IndexCache (DSA models only) -->
                                 <template x-if="DSA_MODEL_TYPES.has(selectedModel?.config_model_type || '')">
-                                    <div class="p-4 bg-neutral-50 rounded-xl space-y-3 mb-3">
+                                    <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-3 mb-3">
                                         <div class="flex items-start justify-between gap-3">
                                             <div class="min-w-0">
                                                 <span class="text-sm font-medium text-neutral-700">{{ t('modal.model_settings.index_cache') }}</span>
@@ -1467,7 +1468,7 @@
                                 </template>
 
                                 <!-- SpecPrefill -->
-                                <div class="p-4 bg-neutral-50 rounded-xl space-y-3">
+                                <div class="border border-neutral-200 p-4 bg-neutral-50 rounded-xl space-y-3">
                                     <div class="flex items-start justify-between gap-3">
                                         <div class="min-w-0">
                                             <span class="text-sm font-medium text-neutral-700">{{ t('modal.model_settings.specprefill') }}</span>
@@ -1523,8 +1524,10 @@
                     </div>
                 </div>
 
+                </div>
+
                 <!-- Actions -->
-                <div class="flex items-center justify-end gap-3 mt-8">
+                <div class="flex-shrink-0 flex items-center justify-end gap-3 px-4 sm:px-8 py-4 bg-neutral-50 border-t border-neutral-200">
                     <button @click="showModelSettingsModal = false"
                             class="px-5 py-2.5 text-sm font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-full transition-all">
                         {{ t('modal.model_settings.cancel') }}
