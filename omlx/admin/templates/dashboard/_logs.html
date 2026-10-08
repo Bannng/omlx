@@ -54,7 +54,7 @@
                             <!-- Manual refresh button -->
                             <button @click="loadLogs()"
                                     :disabled="logLoading"
-                                    class="px-4 py-2 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 transition-all disabled:opacity-50">
+                                    class="px-4 py-2 bg-neutral-900 text-white text-sm font-medium rounded-full hover:bg-neutral-800 transition-all disabled:opacity-50">
                                 <span x-show="!logLoading">{{ t('logs.refresh_button') }}</span>
                                 <span x-show="logLoading">{{ t('logs.loading') }}</span>
                             </button>
@@ -63,9 +63,9 @@
                             <div class="flex items-center gap-2">
                                 <button type="button" @click="logAutoScroll = !logAutoScroll"
                                         :class="logAutoScroll ? 'bg-black' : 'bg-neutral-200'"
-                                        class="relative w-9 h-5 rounded-full transition-colors duration-300 focus:outline-none">
-                                    <span :class="logAutoScroll ? 'translate-x-4' : 'translate-x-0'"
-                                          class="block w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform duration-300 absolute top-0.5 left-0.5"></span>
+                                        class="relative w-11 h-6 flex-shrink-0 rounded-full transition-colors duration-300 focus:outline-none">
+                                    <span :class="logAutoScroll ? 'translate-x-5' : 'translate-x-0'"
+                                          class="block w-5 h-5 bg-white rounded-full shadow-sm transform transition-transform duration-300 absolute top-0.5 left-0.5"></span>
                                 </button>
                                 <label class="text-sm text-neutral-600">{{ t('logs.auto_scroll') }}</label>
                             </div>
@@ -113,7 +113,7 @@
                                 <div class="log-detail__head">
                                     <span class="font-semibold uppercase tracking-wider">{{ t('logs.detail.title') }}</span>
                                     <span class="log-time" x-text="logSelectedRow ? logSelectedRow.time : ''"></span>
-                                    <span class="log-level" :class="logSelectedRow ? logLevelTone(logSelectedRow.level) : ''"
+                                    <span class="badge log-level" :class="logSelectedRow ? logLevelTone(logSelectedRow.level) : ''"
                                           x-text="logSelectedRow && logSelectedRow.level ? logSelectedRow.level : '-'"></span>
                                     <span class="log-module" x-text="logSelectedRow ? logSelectedRow.module : ''"></span>
                                     <span class="flex-grow"></span>
@@ -155,7 +155,7 @@
                                              @keydown.enter.prevent="selectLogRow(row)">
                                             <span class="log-time" x-text="row.time || '-'"
                                                   :title="row.continuation ? window.t('logs.fragment') : row.time"></span>
-                                            <span><span class="log-level" :class="logLevelTone(row.level)" x-text="row.level || '-'"></span></span>
+                                            <span><span class="badge log-level" :class="logLevelTone(row.level)" x-text="row.level || '-'"></span></span>
                                             <span class="log-module log-grid__module" x-text="row.module" :title="row.module"></span>
                                             <span class="log-message">
                                                 <span class="log-message__text" x-text="row.message"></span>

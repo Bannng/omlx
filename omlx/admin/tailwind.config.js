@@ -12,6 +12,10 @@ module.exports = {
   ],
   theme: {
     extend: {
+      // The caption step below text-xs (see docs/web-ui-design.md).
+      fontSize: {
+        caption: '10px',
+      },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },

@@ -59,6 +59,8 @@ def test_font_size_floor_uses_escaped_selectors():
     assert ".text-\\[10px\\]" in BASE, "escaped .text-[10px] selector missing"
     assert ".text-\\[11px\\]" in BASE, "escaped .text-[11px] selector missing"
     assert ".text-\\[9px\\]" in BASE, "escaped .text-[9px] selector missing"
+    assert "[data-enhanced-readability] .text-caption" in BASE
+    assert "[data-enhanced-readability] .badge," in BASE
     assert ".svg-allow-warning" in BASE
     assert ".model-card-content pre code" in BASE
     assert ".code-copy-btn" in BASE

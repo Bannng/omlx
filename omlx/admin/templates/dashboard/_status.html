@@ -21,11 +21,11 @@
                                     <div class="flex items-center gap-2">
                                         <span class="text-lg font-semibold tracking-tight text-neutral-900">{{ t('navbar.brand') }}</span>
                                         <span x-show="restartServer.status !== 'restarting' && restartServer.status !== 'waiting'"
-                                              class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-50 text-green-600 border border-green-200">
+                                              class="badge gap-1 bg-green-50 text-green-600 border-green-200">
                                             <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>{{ t('status.header.running') }}
                                         </span>
                                         <span x-show="restartServer.status === 'restarting' || restartServer.status === 'waiting'" x-cloak
-                                              class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+                                              class="badge gap-1 bg-blue-50 text-blue-600 border-blue-200">
                                             <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>{{ t('status.header.restarting') }}
                                         </span>
                                     </div>
@@ -61,30 +61,30 @@
                         <template x-if="dashEditing">
                             <div class="flex flex-wrap items-center gap-2">
                                 <span class="text-xs font-medium text-neutral-500">{{ t('status.layout.width') }}</span>
-                                <div class="flex rounded-lg border border-neutral-200 overflow-hidden">
+                                <div class="segmented segmented--sm">
                                     <template x-for="opt in dashWidthOptions" :key="opt.id">
                                         <button type="button"
                                             @click="setDashboardWidth(opt.id)"
-                                            :class="dashDraft.width === opt.id ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-600 hover:bg-neutral-50'"
-                                            class="px-3 py-1.5 text-xs font-medium transition-colors"
+                                            :class="dashDraft.width === opt.id ? 'segmented__item--active' : ''"
+                                            class="segmented__item"
                                             x-text="opt.label"></button>
                                     </template>
                                 </div>
                                 <button type="button"
                                     @click="resetDashboardLayout()"
-                                    class="px-3 py-1.5 text-xs font-medium rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-50 transition-colors">
+                                    class="px-3 py-1.5 text-xs font-medium rounded-full border border-neutral-200 text-neutral-600 hover:bg-neutral-50 transition-colors">
                                     {{ t('status.layout.reset') }}
                                 </button>
                                 <button type="button"
                                     @click="cancelDashboardEdit()"
                                     :disabled="dashSaving"
-                                    class="px-3 py-1.5 text-xs font-medium rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-50 transition-colors disabled:opacity-50">
+                                    class="px-3 py-1.5 text-xs font-medium rounded-full border border-neutral-200 text-neutral-600 hover:bg-neutral-50 transition-colors disabled:opacity-50">
                                     {{ t('status.layout.cancel') }}
                                 </button>
                                 <button type="button"
                                     @click="saveDashboardLayout()"
                                     :disabled="dashSaving"
-                                    class="px-3 py-1.5 text-xs font-medium rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 transition-colors disabled:opacity-50"
+                                    class="px-3 py-1.5 text-xs font-medium rounded-full bg-neutral-900 text-white hover:bg-neutral-800 transition-colors disabled:opacity-50"
                                     x-text="dashSaving ? window.t('status.layout.saving') : window.t('status.layout.save')"></button>
                                 <span x-show="dashSaveError" x-text="dashSaveError" class="basis-full text-right text-xs text-red-600"></span>
                             </div>
