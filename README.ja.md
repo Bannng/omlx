@@ -87,7 +87,7 @@ pip install -e .          # コアのみ
 pip install -e ".[mcp]"   # MCP（Model Context Protocol）サポート付き
 
 # オプション: GLM-5.2 / MiniMax M3 ネイティブカスタムカーネル
-OMLX_WITH_CUSTOM_KERNEL=1 pip install -e .
+make kernels   # 既存のカーネルビルドを削除して再コンパイル
 ```
 
 Python 3.10+とApple Silicon（M1/M2/M3/M4/M5）が必要です。
@@ -343,26 +343,36 @@ FastAPI Server (OpenAI / Anthropic API)
 
 ## 開発
 
+### ビルドコマンド
+
+| コマンド | 内容 |
+|---|---|
+| `make dev` | サーバーとWeb UIを開発ツール付きでeditableインストール |
+| `make kernels` | 既存のネイティブカスタムカーネルのビルドを削除して再コンパイルし、すべて読み込めるか確認（Xcodeが必要） |
+| `make web` | Web UIのCSSを再ビルドし、翻訳ファイルを正規化 |
+| `make app` | 実行可能な`oMLX.app`をステージング |
+| `make app-kernels` | ネイティブカスタムカーネルを新しくコンパイルして含めた`oMLX.app`をステージング |
+
 ### CLIサーバー
 
 ```bash
 git clone https://github.com/jundot/omlx.git
 cd omlx
-pip install -e ".[dev]"
+make dev
 pytest -m "not slow"
 ```
 
 ### Web UI
 
-Web管理UIは`apps/omlx-web/`にあり、同じパッケージに含まれるため`pip install -e ".[dev]"`（または`make dev`）で一緒にインストールされます。テンプレート、JavaScript、翻訳を編集したら`make web`でCSSを再ビルドし、翻訳ファイルを正規化してください。
+Web管理UIは`apps/omlx-web/`にあり、同じパッケージに含まれるため`make dev`で一緒にインストールされます。テンプレート、JavaScript、翻訳を編集したら`make web`でCSSを再ビルドし、翻訳ファイルを正規化してください。
 
 ### macOSアプリ
 
-ネイティブ SwiftUI アプリは `apps/omlx-mac/` にあります。Xcode 26.5+ と Python 3.11+ が必要です。venvstacks は dev 依存として宣言されているため、`pip install -e ".[dev]"`（または `uv sync --dev`）でピン留めされたバージョンが入ります。ホスト全体のツールランナーを使いたい場合は `uvx venvstacks` や `pipx run venvstacks` でも動作します。
+ネイティブ SwiftUI アプリは `apps/omlx-mac/` にあります。Xcode 26.5+ と Python 3.11+ が必要です。venvstacks は dev 依存として宣言されているため、`make dev`（または `uv sync --dev`）でピン留めされたバージョンが入ります。ホスト全体のツールランナーを使いたい場合は `uvx venvstacks` や `pipx run venvstacks` でも動作します。
 
 ```bash
 # 実行可能な oMLX.app をステージング（xcodebuild + venvstacks Python レイヤー + ad-hoc 署名）
-apps/omlx-mac/Scripts/build.sh release
+make app
 
 # 出力は apps/omlx-mac/build/Stage/oMLX.app
 open apps/omlx-mac/build/Stage/oMLX.app
@@ -371,7 +381,7 @@ open apps/omlx-mac/build/Stage/oMLX.app
 apps/omlx-mac/Scripts/build.sh release --rebuild-donor
 
 # オプションの GLM-5.2 / MiniMax M3 ネイティブカスタムカーネルを含めてステージング
-apps/omlx-mac/Scripts/build.sh release --with-custom-kernel
+make app-kernels
 ```
 
 初回 cold ビルドは 10–20 分かかります（venvstacks Python レイヤーの組み立て）。以降のビルドは `packaging/_export/` のキャッシュを再利用し、約 4 分で完了します。レイヤー構成は [packaging/README.md](packaging/README.md)、Swift ソースは [apps/omlx-mac/](apps/omlx-mac/) を参照してください。

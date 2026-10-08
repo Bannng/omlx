@@ -16,10 +16,11 @@ oMLX requires Apple Silicon, macOS 15.0+, and Python 3.11–3.13. Fork the repos
 git clone https://github.com/<your-username>/omlx.git
 cd omlx
 git checkout -b fix/describe-the-change
-python -m pip install -e ".[dev]"
+make dev        # Editable install with dev tools
+make kernels    # Optional: native custom kernels, rebuilt from scratch
 ```
 
-See [Development](../README.md#development) for app builds and [installation instructions](../README.md#from-source) for native kernel requirements.
+See [Development](../README.md#development) for the other `make` targets and app builds, and [installation instructions](../README.md#from-source) for native kernel requirements.
 
 ## Keep Changes Focused
 

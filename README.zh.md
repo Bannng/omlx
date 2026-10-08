@@ -87,7 +87,7 @@ pip install -e .          # 仅核心
 pip install -e ".[mcp]"   # 含 MCP（Model Context Protocol）支持
 
 # 可选：GLM-5.2 / MiniMax M3 原生自定义内核
-OMLX_WITH_CUSTOM_KERNEL=1 pip install -e .
+make kernels   # 删除旧的内核构建并重新编译
 ```
 
 需要 macOS 15.0+ (Sequoia), Python 3.10+ 和 Apple Silicon（M1/M2/M3/M4/M5）。
@@ -346,26 +346,36 @@ FastAPI Server (OpenAI / Anthropic API)
 
 ## 开发
 
+### 构建命令
+
+| 命令 | 作用 |
+|---|---|
+| `make dev` | 以 editable 模式安装服务器、Web UI 和开发工具 |
+| `make kernels` | 删除已构建的原生自定义内核并重新编译，然后检查每个内核都能加载（需要完整 Xcode） |
+| `make web` | 重新构建 Web UI 的 CSS 并规范化翻译文件 |
+| `make app` | 暂存可运行的 `oMLX.app` |
+| `make app-kernels` | 暂存包含新编译原生自定义内核的 `oMLX.app` |
+
 ### CLI 服务器
 
 ```bash
 git clone https://github.com/jundot/omlx.git
 cd omlx
-pip install -e ".[dev]"
+make dev
 pytest -m "not slow"
 ```
 
 ### Web UI
 
-Web 管理界面位于 `apps/omlx-web/`，并包含在同一个包中，因此 `pip install -e ".[dev]"`（或 `make dev`）会一并安装。修改模板、JavaScript 或翻译后，运行 `make web` 重新构建 CSS 并规范化翻译文件。
+Web 管理界面位于 `apps/omlx-web/`，并包含在同一个包中，因此 `make dev` 会一并安装。修改模板、JavaScript 或翻译后，运行 `make web` 重新构建 CSS 并规范化翻译文件。
 
 ### macOS 应用
 
-原生 SwiftUI 应用位于 `apps/omlx-mac/`，需要 Xcode 26.5+ 和 Python 3.11+。venvstacks 已声明为 dev 依赖，因此 `pip install -e ".[dev]"`（或 `uv sync --dev`）会引入固定版本。若偏好主机全局工具运行器，也可使用 `uvx venvstacks` 或 `pipx run venvstacks`。
+原生 SwiftUI 应用位于 `apps/omlx-mac/`，需要 Xcode 26.5+ 和 Python 3.11+。venvstacks 已声明为 dev 依赖，因此 `make dev`（或 `uv sync --dev`）会引入固定版本。若偏好主机全局工具运行器，也可使用 `uvx venvstacks` 或 `pipx run venvstacks`。
 
 ```bash
 # 暂存可运行的 oMLX.app（xcodebuild + venvstacks Python 层 + ad-hoc 签名）
-apps/omlx-mac/Scripts/build.sh release
+make app
 
 # 结果在 apps/omlx-mac/build/Stage/oMLX.app
 open apps/omlx-mac/build/Stage/oMLX.app
@@ -374,7 +384,7 @@ open apps/omlx-mac/build/Stage/oMLX.app
 apps/omlx-mac/Scripts/build.sh release --rebuild-donor
 
 # 暂存包含可选 GLM-5.2 / MiniMax M3 原生自定义内核的应用
-apps/omlx-mac/Scripts/build.sh release --with-custom-kernel
+make app-kernels
 ```
 
 首次 cold 构建需要 10–20 分钟（venvstacks Python 层组装）。后续构建复用 `packaging/_export/` 缓存，约 4 分钟完成。层配置请参阅 [packaging/README.md](packaging/README.md)，Swift 源码请参阅 [apps/omlx-mac/](apps/omlx-mac/)。

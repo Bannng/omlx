@@ -88,7 +88,7 @@ pip install -e ".[mcp]"   # With MCP (Model Context Protocol) support
 
 # GLM-5.2 / MiniMax M3 / Qwen3.5 native custom kernels (strongly recommended
 # if you serve those families -- see note below)
-OMLX_WITH_CUSTOM_KERNEL=1 pip install -e .
+make kernels   # Deletes old kernel builds and compiles them again
 ```
 
 Requires macOS 15.0+ (Sequoia), Python 3.11–3.13, and Apple Silicon (M1/M2/M3/M4/M5).
@@ -406,26 +406,36 @@ FastAPI Server (OpenAI / Anthropic API)
 
 ## Development
 
+### Build commands
+
+| Command | What it does |
+|---|---|
+| `make dev` | Editable install of the server and the web UI with dev tools |
+| `make kernels` | Delete any built native custom kernels, compile them again in place, and check that each one loads (needs full Xcode) |
+| `make web` | Rebuild the web UI CSS and normalize the translation files |
+| `make app` | Stage a runnable `oMLX.app` |
+| `make app-kernels` | Stage `oMLX.app` with freshly compiled native custom kernels |
+
 ### CLI Server
 
 ```bash
 git clone https://github.com/jundot/omlx.git
 cd omlx
-pip install -e ".[dev]"
+make dev
 pytest
 ```
 
 ### Web UI
 
-The web admin UI lives in `apps/omlx-web/` and ships in the same package, so `pip install -e ".[dev]"` (or `make dev`) installs it too. After editing its templates, JavaScript, or translations, run `make web` to rebuild the CSS and normalize the translation files.
+The web admin UI lives in `apps/omlx-web/` and ships in the same package, so `make dev` installs it too. After editing its templates, JavaScript, or translations, run `make web` to rebuild the CSS and normalize the translation files.
 
 ### macOS App
 
-The native SwiftUI app lives at `apps/omlx-mac/`. Requires Xcode 26.5+ and Python 3.11+. venvstacks is declared as a dev dependency so `pip install -e ".[dev]"` (or `uv sync --dev`) brings the pinned version in. The build script also falls back to `uvx venvstacks` or `pipx run venvstacks` if you prefer a host-global tool runner.
+The native SwiftUI app lives at `apps/omlx-mac/`. Requires Xcode 26.5+ and Python 3.11+. venvstacks is declared as a dev dependency so `make dev` (or `uv sync --dev`) brings the pinned version in. The build script also falls back to `uvx venvstacks` or `pipx run venvstacks` if you prefer a host-global tool runner.
 
 ```bash
 # Stage a runnable oMLX.app (xcodebuild + venvstacks Python layers + ad-hoc sign)
-apps/omlx-mac/Scripts/build.sh release
+make app
 
 # Result lands at apps/omlx-mac/build/Stage/oMLX.app
 open apps/omlx-mac/build/Stage/oMLX.app
@@ -434,7 +444,7 @@ open apps/omlx-mac/build/Stage/oMLX.app
 apps/omlx-mac/Scripts/build.sh release --rebuild-donor
 
 # Stage with optional GLM-5.2 / MiniMax M3 native custom kernels
-apps/omlx-mac/Scripts/build.sh release --with-custom-kernel
+make app-kernels
 ```
 
 First cold build takes 10–20 minutes (venvstacks Python layer assembly). Subsequent builds reuse the cached `packaging/_export/` and finish in about 4 minutes. See [packaging/README.md](packaging/README.md) for the layer configuration and [apps/omlx-mac/](apps/omlx-mac/) for the Swift sources.
