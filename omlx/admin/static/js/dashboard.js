@@ -108,6 +108,8 @@
     // state for the "reset sort" action.
     const MODELS_SORT_DEFAULT = { by: 'id', order: 'asc' };
     const MANAGER_SORT_DEFAULT = { by: 'name', order: 'asc' };
+    // A global settings section anchor, e.g. `settings-server`.
+    const SETTINGS_SECTION_ID = /^settings-[a-z][a-z-]*$/;
 
     function dashboard() {
         // GridStack instance and helpers stay outside the reactive Alpine state.
@@ -121,6 +123,12 @@
             activeTheme: 'light', // Will be updated by applyTheme
             systemThemeListener: null,
             enhancedReadability: localStorage.getItem(ENHANCED_READABILITY_KEY) === 'on',
+
+            // Global settings section rail
+            settingsActiveSection: 'settings-language',
+            settingsCopiedAnchor: null,
+            _settingsSyncPausedUntil: 0,
+            _settingsScrollWatched: false,
 
             // Mobile menu
             mobileMenuOpen: false,
@@ -695,6 +703,7 @@
                 this.startUpdateCheckTimer();
 
                 await this.handleMainTabChange(this.mainTab);
+                this.settingsScrollToHash();
 
                 // Watch for main tab changes to manage refresh timers
                 this.$watch('mainTab', (value) => {
@@ -742,6 +751,7 @@
 
                 window.addEventListener('popstate', () => {
                     this.applyTabStateFromUrl();
+                    this.settingsScrollToHash();
                 });
 
                 window.addEventListener('focus', () => this.refreshOpenModelSettings());
@@ -817,6 +827,14 @@
                 this.activeTab = DASHBOARD_SETTINGS_TABS.has(settingsTab) ? settingsTab : 'global';
                 this.modelsTab = DASHBOARD_MODELS_TABS.has(modelsTab) ? modelsTab : 'manager';
                 this.benchTab = DASHBOARD_BENCH_TABS.has(benchTab) ? benchTab : 'throughput';
+
+                // A section anchor opens global settings unless the URL names another tab.
+                const section = window.location.hash.slice(1);
+                if (SETTINGS_SECTION_ID.test(section) && (!mainTab || mainTab === 'settings')) {
+                    this.mainTab = 'settings';
+                    this.activeTab = 'global';
+                    this.settingsActiveSection = section;
+                }
             },
 
             syncTabStateToUrl() {
@@ -839,6 +857,13 @@
                     url.searchParams.set('benchTab', this.benchTab);
                 } else {
                     url.searchParams.delete('benchTab');
+                }
+
+                // A section anchor outlives a tab change otherwise, and a reload
+                // would then jump back to settings.
+                if (!(this.mainTab === 'settings' && this.activeTab === 'global'
+                    && SETTINGS_SECTION_ID.test(url.hash.slice(1)))) {
+                    url.hash = '';
                 }
 
                 window.history.replaceState({}, '', url);
@@ -888,6 +913,77 @@
                 this.activeTab = tab;
                 this.mainTab = 'settings';
                 this.syncTabStateToUrl();
+            },
+
+            settingsGoToSection(id) {
+                this.settingsActiveSection = id;
+                // Smooth scrolling passes other sections; keep the clicked one marked.
+                this._settingsSyncPausedUntil = Date.now() + 1000;
+                window.dispatchEvent(new CustomEvent('settings-open-section', { detail: id }));
+                this.$nextTick(() => this.settingsScrollTo(id, true));
+                const url = new URL(window.location.href);
+                url.hash = id;
+                window.history.replaceState({}, '', url);
+            },
+
+            settingsScrollTo(id, smooth) {
+                const target = document.getElementById(id);
+                if (!target || !target.getClientRects().length) return;
+                const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                target.scrollIntoView({ behavior: smooth && !reduce ? 'smooth' : 'auto', block: 'start' });
+            },
+
+            settingsScrollToHash() {
+                const id = window.location.hash.slice(1);
+                if (this.mainTab !== 'settings' || !SETTINGS_SECTION_ID.test(id)) return;
+                this._settingsSyncPausedUntil = Date.now() + 1000;
+                window.dispatchEvent(new CustomEvent('settings-open-section', { detail: id }));
+                this.$nextTick(() => this.settingsScrollTo(id, false));
+            },
+
+            settingsSyncActiveSection() {
+                if (this.mainTab !== 'settings' || this.activeTab !== 'global') return;
+                if (Date.now() < this._settingsSyncPausedUntil) return;
+                const sections = Array.from(document.querySelectorAll('#panel-settings .settings-section'))
+                    .filter((el) => el.getClientRects().length);
+                if (!sections.length) return;
+                // At the bottom of the page the last sections cannot reach the line.
+                const doc = document.documentElement;
+                if (window.scrollY > 0 && window.scrollY + window.innerHeight >= doc.scrollHeight - 2) {
+                    this.settingsActiveSection = sections[sections.length - 1].id;
+                    return;
+                }
+                // A section is current once its top passes the line it scrolls to.
+                let current = sections[0].id;
+                for (const el of sections) {
+                    const line = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
+                    if (el.getBoundingClientRect().top > line + 1) break;
+                    current = el.id;
+                }
+                this.settingsActiveSection = current;
+            },
+
+            settingsWatchScroll() {
+                if (this._settingsScrollWatched) return;
+                this._settingsScrollWatched = true;
+                let frame = 0;
+                const onScroll = () => {
+                    if (frame) return;
+                    frame = requestAnimationFrame(() => {
+                        frame = 0;
+                        this.settingsSyncActiveSection();
+                    });
+                };
+                window.addEventListener('scroll', onScroll, { passive: true });
+                window.addEventListener('resize', onScroll);
+            },
+
+            settingsCopyAnchor(id) {
+                this.copyToClipboard(window.location.origin + window.location.pathname + '#' + id);
+                this.settingsCopiedAnchor = id;
+                setTimeout(() => {
+                    if (this.settingsCopiedAnchor === id) this.settingsCopiedAnchor = null;
+                }, 2000);
             },
 
             setModelsTab(tab) {

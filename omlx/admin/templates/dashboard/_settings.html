@@ -26,15 +26,45 @@
                         </button>
                     </div>
 
-                    <!-- Settings Sections -->
-                    <div class="space-y-4">
+                    <!-- Settings Sections, with a rail that follows the scroll -->
+                    {%- set settings_rail = [
+                            ('settings-language', t('settings.language.section_label')),
+                            ('settings-appearance', t('settings.sections.appearance')),
+                            ('settings-auth', t('settings.auth.section_label')),
+                            ('settings-server', t('settings.server.section_label')),
+                            ('settings-model', t('settings.model.section_label')),
+                            ('settings-resource', t('settings.resource.section_label')),
+                            ('settings-cache', t('settings.cache.section_label')),
+                            ('settings-generation', t('settings.generation.section_label')),
+                            ('settings-mcp', t('settings.mcp.section_label')),
+                            ('settings-usage', t('settings.usage.section_label')),
+                            ('settings-network', t('settings.network.section_label')),
+                            ('settings-advanced', t('settings.advanced.section_label'))
+                    ] %}
+                    <div class="settings-layout" x-init="settingsWatchScroll()">
+                        <nav class="settings-rail" aria-label="{{ t('settings.sections.label') }}">
+                            {%- for sid, title in settings_rail %}
+                            <a href="#{{ sid }}" class="settings-rail__item"
+                               :class="settingsActiveSection === '{{ sid }}' ? 'settings-rail__item--active' : ''"
+                               :aria-current="settingsActiveSection === '{{ sid }}' ? 'location' : null"
+                               @click.prevent="settingsGoToSection('{{ sid }}')">{{ title }}</a>
+                            {%- endfor %}
+                        </nav>
+                    <div class="space-y-4 min-w-0">
 
                         <!-- Language Section -->
-                        <div class="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+                        <div id="settings-language" class="settings-section bg-white rounded-2xl border border-neutral-200 overflow-hidden">
                             <div class="flex items-center justify-between px-6 py-4 bg-neutral-100 border-b border-neutral-200">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="globe" class="w-4 h-4 text-neutral-500"></i>
                                     <span class="text-xs font-bold uppercase tracking-wider text-neutral-600">{{ t('settings.language.section_label') }}</span>
+                                    <button type="button" @click="settingsCopyAnchor('settings-language')"
+                                            class="p-1 rounded-md text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
+                                            :title="settingsCopiedAnchor === 'settings-language' ? window.t('cluster.v2.common.copied') : window.t('settings.sections.copy_link')"
+                                            :aria-label="window.t('settings.sections.copy_link')">
+                                        <i x-show="settingsCopiedAnchor !== 'settings-language'" data-lucide="link" class="w-3.5 h-3.5"></i>
+                                        <i x-show="settingsCopiedAnchor === 'settings-language'" x-cloak data-lucide="check" class="w-3.5 h-3.5"></i>
+                                    </button>
                                 </div>
                             </div>
                             <div class="divide-y divide-neutral-100">
@@ -58,12 +88,57 @@
                             </div>
                         </div>
 
+                        <!-- Appearance Section -->
+                        <div id="settings-appearance" class="settings-section bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+                            <div class="flex items-center justify-between px-6 py-4 bg-neutral-100 border-b border-neutral-200">
+                                <div class="flex items-center gap-3">
+                                    <i data-lucide="sun-moon" class="w-4 h-4 text-neutral-500"></i>
+                                    <span class="text-xs font-bold uppercase tracking-wider text-neutral-600">{{ t('settings.sections.appearance') }}</span>
+                                    <button type="button" @click="settingsCopyAnchor('settings-appearance')"
+                                            class="p-1 rounded-md text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
+                                            :title="settingsCopiedAnchor === 'settings-appearance' ? window.t('cluster.v2.common.copied') : window.t('settings.sections.copy_link')"
+                                            :aria-label="window.t('settings.sections.copy_link')">
+                                        <i x-show="settingsCopiedAnchor !== 'settings-appearance'" data-lucide="link" class="w-3.5 h-3.5"></i>
+                                        <i x-show="settingsCopiedAnchor === 'settings-appearance'" x-cloak data-lucide="check" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="divide-y divide-neutral-100">
+                                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 sm:px-6 py-4">
+                                    <label class="text-sm text-neutral-700">{{ t('chat.theme_label') }}</label>
+                                    {{ ui.segmented([('auto', t('navbar.theme.auto')), ('light', t('navbar.theme.light_mode')), ('dark', t('navbar.theme.dark_mode'))],
+                                                    'theme', "setTheme('{value}')", aria_label=t('chat.theme_label')) }}
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 sm:px-6 py-4">
+                                    <div>
+                                        <label class="text-sm text-neutral-700">{{ t('chat.enhanced_readability') }}</label>
+                                        <p class="text-xs text-neutral-400 mt-0.5">{{ t('chat.enhanced_readability_desc') }}</p>
+                                    </div>
+                                    <button type="button" role="switch"
+                                            @click="setEnhancedReadability(!enhancedReadability)"
+                                            :aria-checked="enhancedReadability ? 'true' : 'false'"
+                                            :class="enhancedReadability ? 'bg-black' : 'bg-neutral-200'"
+                                            class="relative w-11 h-6 flex-shrink-0 rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black">
+                                        <span :class="enhancedReadability ? 'translate-x-5' : 'translate-x-0'"
+                                              class="block w-5 h-5 bg-white rounded-full shadow-sm transform transition-transform duration-300 absolute top-0.5 left-0.5"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Auth & Info Section -->
-                        <div class="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+                        <div id="settings-auth" class="settings-section bg-white rounded-2xl border border-neutral-200 overflow-hidden">
                             <div class="flex items-center justify-between px-6 py-4 bg-neutral-100 border-b border-neutral-200">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="shield" class="w-4 h-4 text-neutral-500"></i>
                                     <span class="text-xs font-bold uppercase tracking-wider text-neutral-600">{{ t('settings.auth.section_label') }}</span>
+                                    <button type="button" @click="settingsCopyAnchor('settings-auth')"
+                                            class="p-1 rounded-md text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
+                                            :title="settingsCopiedAnchor === 'settings-auth' ? window.t('cluster.v2.common.copied') : window.t('settings.sections.copy_link')"
+                                            :aria-label="window.t('settings.sections.copy_link')">
+                                        <i x-show="settingsCopiedAnchor !== 'settings-auth'" data-lucide="link" class="w-3.5 h-3.5"></i>
+                                        <i x-show="settingsCopiedAnchor === 'settings-auth'" x-cloak data-lucide="check" class="w-3.5 h-3.5"></i>
+                                    </button>
                                 </div>
                             </div>
                             <div class="divide-y divide-neutral-100">
@@ -192,11 +267,18 @@
                         </div>
 
                         <!-- Server Section -->
-                        <div class="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+                        <div id="settings-server" class="settings-section bg-white rounded-2xl border border-neutral-200 overflow-hidden">
                             <div class="flex items-center justify-between px-6 py-4 bg-neutral-100 border-b border-neutral-200">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="server" class="w-4 h-4 text-neutral-500"></i>
                                     <span class="text-xs font-bold uppercase tracking-wider text-neutral-600">{{ t('settings.server.section_label') }}</span>
+                                    <button type="button" @click="settingsCopyAnchor('settings-server')"
+                                            class="p-1 rounded-md text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
+                                            :title="settingsCopiedAnchor === 'settings-server' ? window.t('cluster.v2.common.copied') : window.t('settings.sections.copy_link')"
+                                            :aria-label="window.t('settings.sections.copy_link')">
+                                        <i x-show="settingsCopiedAnchor !== 'settings-server'" data-lucide="link" class="w-3.5 h-3.5"></i>
+                                        <i x-show="settingsCopiedAnchor === 'settings-server'" x-cloak data-lucide="check" class="w-3.5 h-3.5"></i>
+                                    </button>
                                 </div>
                             </div>
                             <div class="divide-y divide-neutral-100">
@@ -262,11 +344,18 @@
                         </div>
 
                         <!-- Model Section -->
-                        <div class="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+                        <div id="settings-model" class="settings-section bg-white rounded-2xl border border-neutral-200 overflow-hidden">
                             <div class="flex items-center justify-between px-6 py-4 bg-neutral-100 border-b border-neutral-200">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="box" class="w-4 h-4 text-neutral-500"></i>
                                     <span class="text-xs font-bold uppercase tracking-wider text-neutral-600">{{ t('settings.model.section_label') }}</span>
+                                    <button type="button" @click="settingsCopyAnchor('settings-model')"
+                                            class="p-1 rounded-md text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
+                                            :title="settingsCopiedAnchor === 'settings-model' ? window.t('cluster.v2.common.copied') : window.t('settings.sections.copy_link')"
+                                            :aria-label="window.t('settings.sections.copy_link')">
+                                        <i x-show="settingsCopiedAnchor !== 'settings-model'" data-lucide="link" class="w-3.5 h-3.5"></i>
+                                        <i x-show="settingsCopiedAnchor === 'settings-model'" x-cloak data-lucide="check" class="w-3.5 h-3.5"></i>
+                                    </button>
                                 </div>
                             </div>
                             <div class="divide-y divide-neutral-100">
@@ -342,11 +431,18 @@
                         </div>
 
                         <!-- Memory Management Section -->
-                        <div class="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+                        <div id="settings-resource" class="settings-section bg-white rounded-2xl border border-neutral-200 overflow-hidden">
                             <div class="flex items-center justify-between px-6 py-4 bg-neutral-100 border-b border-neutral-200">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="gauge" class="w-4 h-4 text-neutral-500"></i>
                                     <span class="text-xs font-bold uppercase tracking-wider text-neutral-600">{{ t('settings.resource.section_label') }}</span>
+                                    <button type="button" @click="settingsCopyAnchor('settings-resource')"
+                                            class="p-1 rounded-md text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
+                                            :title="settingsCopiedAnchor === 'settings-resource' ? window.t('cluster.v2.common.copied') : window.t('settings.sections.copy_link')"
+                                            :aria-label="window.t('settings.sections.copy_link')">
+                                        <i x-show="settingsCopiedAnchor !== 'settings-resource'" data-lucide="link" class="w-3.5 h-3.5"></i>
+                                        <i x-show="settingsCopiedAnchor === 'settings-resource'" x-cloak data-lucide="check" class="w-3.5 h-3.5"></i>
+                                    </button>
                                 </div>
                                 <span class="px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-50 text-green-600 border border-green-200">
                                     {{ t('settings.resource.live_badge') }}
@@ -583,11 +679,18 @@
                         </div>
 
                         <!-- Cache Section -->
-                        <div class="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+                        <div id="settings-cache" class="settings-section bg-white rounded-2xl border border-neutral-200 overflow-hidden">
                             <div class="flex items-center justify-between px-6 py-4 bg-neutral-100 border-b border-neutral-200">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="hard-drive" class="w-4 h-4 text-neutral-500"></i>
                                     <span class="text-xs font-bold uppercase tracking-wider text-neutral-600">{{ t('settings.cache.section_label') }}</span>
+                                    <button type="button" @click="settingsCopyAnchor('settings-cache')"
+                                            class="p-1 rounded-md text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
+                                            :title="settingsCopiedAnchor === 'settings-cache' ? window.t('cluster.v2.common.copied') : window.t('settings.sections.copy_link')"
+                                            :aria-label="window.t('settings.sections.copy_link')">
+                                        <i x-show="settingsCopiedAnchor !== 'settings-cache'" data-lucide="link" class="w-3.5 h-3.5"></i>
+                                        <i x-show="settingsCopiedAnchor === 'settings-cache'" x-cloak data-lucide="check" class="w-3.5 h-3.5"></i>
+                                    </button>
                                 </div>
                             </div>
                             <div class="divide-y divide-neutral-100">
@@ -630,11 +733,18 @@
                         </div>
 
                         <!-- Sampling Defaults Section -->
-                        <div class="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+                        <div id="settings-generation" class="settings-section bg-white rounded-2xl border border-neutral-200 overflow-hidden">
                             <div class="flex items-center justify-between px-6 py-4 bg-neutral-100 border-b border-neutral-200">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="sliders" class="w-4 h-4 text-neutral-500"></i>
                                     <span class="text-xs font-bold uppercase tracking-wider text-neutral-600">{{ t('settings.generation.section_label') }}</span>
+                                    <button type="button" @click="settingsCopyAnchor('settings-generation')"
+                                            class="p-1 rounded-md text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
+                                            :title="settingsCopiedAnchor === 'settings-generation' ? window.t('cluster.v2.common.copied') : window.t('settings.sections.copy_link')"
+                                            :aria-label="window.t('settings.sections.copy_link')">
+                                        <i x-show="settingsCopiedAnchor !== 'settings-generation'" data-lucide="link" class="w-3.5 h-3.5"></i>
+                                        <i x-show="settingsCopiedAnchor === 'settings-generation'" x-cloak data-lucide="check" class="w-3.5 h-3.5"></i>
+                                    </button>
                                 </div>
                             </div>
                             <div class="divide-y divide-neutral-100">
@@ -709,11 +819,18 @@
                         </div>
 
                         <!-- MCP Section -->
-                        <div class="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+                        <div id="settings-mcp" class="settings-section bg-white rounded-2xl border border-neutral-200 overflow-hidden">
                             <div class="flex items-center justify-between px-6 py-4 bg-neutral-100 border-b border-neutral-200">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="plug" class="w-4 h-4 text-neutral-500"></i>
                                     <span class="text-xs font-bold uppercase tracking-wider text-neutral-600">{{ t('settings.mcp.section_label') }}</span>
+                                    <button type="button" @click="settingsCopyAnchor('settings-mcp')"
+                                            class="p-1 rounded-md text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
+                                            :title="settingsCopiedAnchor === 'settings-mcp' ? window.t('cluster.v2.common.copied') : window.t('settings.sections.copy_link')"
+                                            :aria-label="window.t('settings.sections.copy_link')">
+                                        <i x-show="settingsCopiedAnchor !== 'settings-mcp'" data-lucide="link" class="w-3.5 h-3.5"></i>
+                                        <i x-show="settingsCopiedAnchor === 'settings-mcp'" x-cloak data-lucide="check" class="w-3.5 h-3.5"></i>
+                                    </button>
                                 </div>
                                 <span class="px-2 py-0.5 text-[10px] font-medium rounded-full bg-amber-50 text-amber-600 border border-amber-200">
                                     {{ t('settings.mcp.restart_badge') }}
@@ -742,11 +859,18 @@
                         </div>
 
                         <!-- Usage History Section -->
-                        <div class="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+                        <div id="settings-usage" class="settings-section bg-white rounded-2xl border border-neutral-200 overflow-hidden">
                             <div class="flex items-center justify-between px-6 py-4 bg-neutral-100 border-b border-neutral-200">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="history" class="w-4 h-4 text-neutral-500"></i>
                                     <span class="text-xs font-bold uppercase tracking-wider text-neutral-600">{{ t('settings.usage.section_label') }}</span>
+                                    <button type="button" @click="settingsCopyAnchor('settings-usage')"
+                                            class="p-1 rounded-md text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
+                                            :title="settingsCopiedAnchor === 'settings-usage' ? window.t('cluster.v2.common.copied') : window.t('settings.sections.copy_link')"
+                                            :aria-label="window.t('settings.sections.copy_link')">
+                                        <i x-show="settingsCopiedAnchor !== 'settings-usage'" data-lucide="link" class="w-3.5 h-3.5"></i>
+                                        <i x-show="settingsCopiedAnchor === 'settings-usage'" x-cloak data-lucide="check" class="w-3.5 h-3.5"></i>
+                                    </button>
                                 </div>
                                 <span class="px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-50 text-green-600 border border-green-200">
                                     {{ t('settings.resource.live_badge') }}
@@ -772,11 +896,18 @@
                         </div>
 
                         <!-- Network Section -->
-                        <div class="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+                        <div id="settings-network" class="settings-section bg-white rounded-2xl border border-neutral-200 overflow-hidden">
                             <div class="flex items-center justify-between px-6 py-4 bg-neutral-100 border-b border-neutral-200">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="network" class="w-4 h-4 text-neutral-500"></i>
                                     <span class="text-xs font-bold uppercase tracking-wider text-neutral-600">{{ t('settings.network.section_label') }}</span>
+                                    <button type="button" @click="settingsCopyAnchor('settings-network')"
+                                            class="p-1 rounded-md text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
+                                            :title="settingsCopiedAnchor === 'settings-network' ? window.t('cluster.v2.common.copied') : window.t('settings.sections.copy_link')"
+                                            :aria-label="window.t('settings.sections.copy_link')">
+                                        <i x-show="settingsCopiedAnchor !== 'settings-network'" data-lucide="link" class="w-3.5 h-3.5"></i>
+                                        <i x-show="settingsCopiedAnchor === 'settings-network'" x-cloak data-lucide="check" class="w-3.5 h-3.5"></i>
+                                    </button>
                                 </div>
                                 <span class="px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-50 text-green-600 border border-green-200">
                                     {{ t('settings.resource.live_badge') }}
@@ -819,8 +950,9 @@
                         </div>
 
                         <!-- Advanced Settings (collapsible, collapsed by default) -->
-                        <div class="bg-white rounded-2xl border border-neutral-200 overflow-hidden"
-                             x-data="{ advancedOpen: false }">
+                        <div id="settings-advanced" class="settings-section bg-white rounded-2xl border border-neutral-200 overflow-hidden"
+                             x-data="{ advancedOpen: false }"
+                             @settings-open-section.window="if ($event.detail === 'settings-advanced') advancedOpen = true">
                             <button @click="advancedOpen = !advancedOpen"
                                     class="w-full flex items-center justify-between px-6 py-4 bg-neutral-50 hover:bg-neutral-100 transition-colors cursor-pointer">
                                 <div class="flex items-center gap-3">
@@ -1052,6 +1184,7 @@
                             </div>
                         </div>
 
+                    </div>
                     </div>
 
                     <!-- Save / Restart Buttons -->

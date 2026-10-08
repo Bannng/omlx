@@ -1289,7 +1289,10 @@
     /* === Sub-tab row === */
     /* Pins under the sticky navbar. <main> must not clip overflow, or it becomes
        the scroll container and nothing inside it sticks (see dashboard.html). */
-    :root { --dashboard-topbar-height: 77px; }
+    :root {
+        --dashboard-topbar-height: 77px;
+        --dashboard-subtabs-height: 57px;
+    }
     .page-tabs {
         position: sticky;
         top: var(--dashboard-topbar-height);
@@ -1324,4 +1327,52 @@
     .segmented__item--active {
         background-color: var(--bg-primary);
         color: var(--text-primary);
+    }
+
+    /* === Global settings section rail === */
+    .settings-layout {
+        display: grid;
+        grid-template-columns: 11rem minmax(0, 1fr);
+        gap: 1.5rem;
+        align-items: start;
+    }
+    .settings-section {
+        scroll-margin-top: calc(var(--dashboard-topbar-height) + var(--dashboard-subtabs-height) + 0.75rem);
+    }
+    .settings-rail {
+        position: sticky;
+        top: calc(var(--dashboard-topbar-height) + var(--dashboard-subtabs-height) + 0.75rem);
+        max-height: calc(100vh - var(--dashboard-topbar-height) - var(--dashboard-subtabs-height) - 1.5rem);
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+        padding: 0.5rem;
+        background-color: var(--bg-primary);
+        border: 1px solid var(--border-faint);
+        border-radius: 1rem;
+    }
+    .settings-rail__item {
+        display: block;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.875rem;
+        line-height: 1.4;
+        color: var(--text-secondary);
+        border-radius: 0.5rem;
+        text-decoration: none;
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }
+    .settings-rail__item:hover {
+        color: var(--text-primary);
+        background-color: var(--bg-secondary);
+    }
+    .settings-rail__item--active,
+    .settings-rail__item--active:hover {
+        color: var(--text-primary);
+        font-weight: 600;
+        background-color: var(--bg-tertiary);
+    }
+    @media (max-width: 900px) {
+        .settings-layout { grid-template-columns: minmax(0, 1fr); }
+        .settings-rail { display: none; }
     }
