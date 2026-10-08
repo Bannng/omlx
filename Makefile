@@ -1,14 +1,30 @@
 # Developer shortcuts. The server itself builds with plain pip and needs none of these.
 PYTHON ?= python3
-# cmake and nanobind pins from [build-system]; the kernels must use MLX's nanobind.
+# setuptools, cmake, and nanobind pins from [build-system]; the kernels must use MLX's nanobind.
 KERNEL_BUILD_DEPS = $(shell $(PYTHON) -c "import tomllib; \
 	reqs = tomllib.load(open('pyproject.toml', 'rb'))['build-system']['requires']; \
-	print(' '.join(repr(r) for r in reqs if r.startswith(('cmake', 'nanobind'))))")
+	print(' '.join(repr(r) for r in reqs if r.startswith(('setuptools', 'cmake', 'nanobind'))))")
 
-.PHONY: dev kernels clean-kernels web app app-kernels
+.PHONY: install install-no-kernels mcp dev dev-no-kernels kernels clean-kernels web app
 
-# Editable install of the server and the web UI with dev tools.
-dev:
+# Editable install of the server and the web UI, then the native custom kernels.
+install: install-no-kernels
+	$(MAKE) kernels
+
+# Editable install without the kernels, for machines without full Xcode. The affected
+# model families then fall back to much slower generic paths.
+install-no-kernels:
+	$(PYTHON) -m pip install -e .
+
+# Add MCP (Model Context Protocol) support to the editable install.
+mcp:
+	$(PYTHON) -m pip install -e ".[mcp]"
+
+# Same as install, with dev tools.
+dev: dev-no-kernels
+	$(MAKE) kernels
+
+dev-no-kernels:
 	$(PYTHON) -m pip install -e ".[dev]"
 
 # Rebuild every native custom kernel in place from scratch, then check that each one loads.
@@ -29,10 +45,6 @@ clean-kernels:
 web:
 	cd apps/omlx-web && $(PYTHON) build_css.py && $(PYTHON) normalize_i18n.py
 
-# Build a runnable macOS app bundle.
+# Build a runnable macOS app bundle with freshly compiled native custom kernels.
 app:
-	apps/omlx-mac/Scripts/build.sh release
-
-# Build the macOS app bundle with freshly compiled native custom kernels.
-app-kernels:
 	apps/omlx-mac/Scripts/build.sh release --with-custom-kernel

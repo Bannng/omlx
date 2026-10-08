@@ -83,14 +83,17 @@ brew install omlx --HEAD --with-custom-kernel
 ```bash
 git clone https://github.com/jundot/omlx.git
 cd omlx
-pip install -e .          # コアのみ
-pip install -e ".[mcp]"   # MCP（Model Context Protocol）サポート付き
-
-# オプション: GLM-5.2 / MiniMax M3 ネイティブカスタムカーネル
-make kernels   # 既存のカーネルビルドを削除して再コンパイル
+make install                # Web UIとネイティブカスタムカーネルを含むeditableインストール
+make mcp                    # オプション: MCP（Model Context Protocol）サポートを追加
 ```
 
-Python 3.10+とApple Silicon（M1/M2/M3/M4/M5）が必要です。
+macOS 15.0+（Sequoia）、Python 3.11–3.13、Apple Silicon（M1/M2/M3/M4/M5）が必要です。
+
+> **ネイティブカスタムカーネルについて:** GLM-5.2、MiniMax M3、Qwen3.5にはカーネルが必要で、ないと警告なしにかなり遅い汎用パスにフォールバックします。`make install`はカーネルもビルドし、すべて読み込めるか確認します。これにはMetalツールチェーン入りのフルXcodeが必要です（`xcodebuild -downloadComponent MetalToolchain`）。Command Line Toolsだけでは足りません。Xcodeがない場合は、カーネルがコンパイル済みで同梱されている公式DMGを使うか、`make install-no-kernels`を使ってください。`make kernels`はカーネルだけを最初からビルドし直します。インストールの確認:
+>
+> ```bash
+> python -c "from omlx.custom_kernels import native_kernel_status; print(native_kernel_status())"
+> ```
 
 ## クイックスタート
 
@@ -347,11 +350,15 @@ FastAPI Server (OpenAI / Anthropic API)
 
 | コマンド | 内容 |
 |---|---|
-| `make dev` | サーバーとWeb UIを開発ツール付きでeditableインストール |
-| `make kernels` | 既存のネイティブカスタムカーネルのビルドを削除して再コンパイルし、すべて読み込めるか確認（Xcodeが必要） |
+| `make install` | サーバーとWeb UIをeditableインストールし、ネイティブカスタムカーネルもビルド |
+| `make install-no-kernels` | カーネルなしで同じインストール（フルXcodeがない環境向け） |
+| `make mcp` | MCP（Model Context Protocol）サポートを追加 |
+| `make dev` | `make install`と同じで開発ツール付き（`make dev-no-kernels`はカーネルなし） |
+| `make kernels` | 既存のネイティブカスタムカーネルのビルドを削除して再コンパイルし、すべて読み込めるか確認 |
 | `make web` | Web UIのCSSを再ビルドし、翻訳ファイルを正規化 |
-| `make app` | 実行可能な`oMLX.app`をステージング |
-| `make app-kernels` | ネイティブカスタムカーネルを新しくコンパイルして含めた`oMLX.app`をステージング |
+| `make app` | ネイティブカスタムカーネルを新しくコンパイルして含めた`oMLX.app`をステージング |
+
+ネイティブカスタムカーネルのビルドにはMetalツールチェーン入りのフルXcodeが必要です（`xcodebuild -downloadComponent MetalToolchain`）。
 
 ### CLIサーバー
 
@@ -371,7 +378,7 @@ Web管理UIは`apps/omlx-web/`にあり、同じパッケージに含まれる�
 ネイティブ SwiftUI アプリは `apps/omlx-mac/` にあります。Xcode 26.5+ と Python 3.11+ が必要です。venvstacks は dev 依存として宣言されているため、`make dev`（または `uv sync --dev`）でピン留めされたバージョンが入ります。ホスト全体のツールランナーを使いたい場合は `uvx venvstacks` や `pipx run venvstacks` でも動作します。
 
 ```bash
-# 実行可能な oMLX.app をステージング（xcodebuild + venvstacks Python レイヤー + ad-hoc 署名）
+# 実行可能な oMLX.app をステージング（xcodebuild + venvstacks Python レイヤー + ネイティブカーネル + ad-hoc 署名）
 make app
 
 # 出力は apps/omlx-mac/build/Stage/oMLX.app
@@ -379,9 +386,6 @@ open apps/omlx-mac/build/Stage/oMLX.app
 
 # venvstacks を強制的に再ビルド（通常は fingerprint でキャッシュ）
 apps/omlx-mac/Scripts/build.sh release --rebuild-donor
-
-# オプションの GLM-5.2 / MiniMax M3 ネイティブカスタムカーネルを含めてステージング
-make app-kernels
 ```
 
 初回 cold ビルドは 10–20 分かかります（venvstacks Python レイヤーの組み立て）。以降のビルドは `packaging/_export/` のキャッシュを再利用し、約 4 分で完了します。レイヤー構成は [packaging/README.md](packaging/README.md)、Swift ソースは [apps/omlx-mac/](apps/omlx-mac/) を参照してください。

@@ -84,14 +84,17 @@ brew install omlx --HEAD --with-custom-kernel
 ```bash
 git clone https://github.com/jundot/omlx.git
 cd omlx
-pip install -e .          # Core uniquement
-pip install -e ".[mcp]"   # Avec support MCP (Model Context Protocol)
-
-# Optionnel : kernels natifs personnalisés GLM-5.2 / MiniMax M3
-make kernels   # Supprime les anciens builds et recompile
+make install                # Installation editable avec l'interface web et les kernels natifs
+make mcp                    # Optionnel : ajoute le support MCP (Model Context Protocol)
 ```
 
-Nécessite macOS 15.0+ (Sequoia), Python 3.10+, et Apple Silicon (M1/M2/M3/M4/M5).
+Nécessite macOS 15.0+ (Sequoia), Python 3.11–3.13, et Apple Silicon (M1/M2/M3/M4/M5).
+
+> **Note sur les kernels natifs :** GLM-5.2, MiniMax M3 et Qwen3.5 en ont besoin ; sans eux, ces familles retombent sans avertissement sur des chemins génériques bien plus lents. `make install` les compile aussi et vérifie que chacun se charge, ce qui demande Xcode complet avec la toolchain Metal (`xcodebuild -downloadComponent MetalToolchain`) ; les Command Line Tools seules ne suffisent pas. Sans Xcode, utilisez le DMG officiel qui inclut les kernels précompilés, ou `make install-no-kernels`. `make kernels` recompile seulement les kernels depuis zéro. Pour vérifier une installation :
+>
+> ```bash
+> python -c "from omlx.custom_kernels import native_kernel_status; print(native_kernel_status())"
+> ```
 
 ## Démarrage rapide
 
@@ -350,11 +353,15 @@ Serveur FastAPI (API OpenAI / Anthropic)
 
 | Commande | Rôle |
 |---|---|
-| `make dev` | Installation editable du serveur et de l'interface web avec les outils de dev |
-| `make kernels` | Supprime les kernels natifs déjà compilés, les recompile sur place et vérifie que chacun se charge (Xcode complet requis) |
+| `make install` | Installation editable du serveur et de l'interface web, puis compilation des kernels natifs |
+| `make install-no-kernels` | La même installation sans les kernels, pour les machines sans Xcode complet |
+| `make mcp` | Ajoute le support MCP (Model Context Protocol) |
+| `make dev` | Comme `make install`, avec les outils de dev (`make dev-no-kernels` sans les kernels) |
+| `make kernels` | Supprime les kernels natifs déjà compilés, les recompile sur place et vérifie que chacun se charge |
 | `make web` | Reconstruit le CSS de l'interface web et normalise les fichiers de traduction |
-| `make app` | Prépare un `oMLX.app` exécutable |
-| `make app-kernels` | Prépare `oMLX.app` avec des kernels natifs fraîchement compilés |
+| `make app` | Prépare un `oMLX.app` exécutable avec des kernels natifs fraîchement compilés |
+
+Les kernels natifs demandent Xcode complet avec la toolchain Metal (`xcodebuild -downloadComponent MetalToolchain`).
 
 ### Serveur CLI
 
@@ -374,7 +381,7 @@ L'interface web d'administration se trouve dans `apps/omlx-web/` et fait partie 
 L'application SwiftUI native vit dans `apps/omlx-mac/`. Nécessite Xcode 26.5+ et Python 3.11+. venvstacks est déclaré comme dépendance dev, donc `make dev` (ou `uv sync --dev`) installe la version épinglée. Le script de build retombe sur `uvx venvstacks` ou `pipx run venvstacks` si vous préférez un runner d'outils global.
 
 ```bash
-# Préparer un oMLX.app exécutable (xcodebuild + couches Python venvstacks + signature ad-hoc)
+# Préparer un oMLX.app exécutable (xcodebuild + couches Python venvstacks + kernels natifs + signature ad-hoc)
 make app
 
 # Le résultat atterrit dans apps/omlx-mac/build/Stage/oMLX.app
@@ -382,9 +389,6 @@ open apps/omlx-mac/build/Stage/oMLX.app
 
 # Forcer une reconstruction de venvstacks (sinon mis en cache par empreinte)
 apps/omlx-mac/Scripts/build.sh release --rebuild-donor
-
-# Préparer avec les kernels natifs personnalisés optionnels GLM-5.2 / MiniMax M3
-make app-kernels
 ```
 
 Le premier build à froid prend 10–20 minutes (assemblage des couches Python venvstacks). Les builds suivants réutilisent `packaging/_export/` et finissent en environ 4 minutes. Voir [packaging/README.md](packaging/README.md) pour la configuration des couches et [apps/omlx-mac/](apps/omlx-mac/) pour les sources Swift.

@@ -83,14 +83,17 @@ brew install omlx --HEAD --with-custom-kernel
 ```bash
 git clone https://github.com/jundot/omlx.git
 cd omlx
-pip install -e .          # 仅核心
-pip install -e ".[mcp]"   # 含 MCP（Model Context Protocol）支持
-
-# 可选：GLM-5.2 / MiniMax M3 原生自定义内核
-make kernels   # 删除旧的内核构建并重新编译
+make install                # 以 editable 模式安装（含 Web UI 和原生自定义内核）
+make mcp                    # 可选：添加 MCP（Model Context Protocol）支持
 ```
 
-需要 macOS 15.0+ (Sequoia), Python 3.10+ 和 Apple Silicon（M1/M2/M3/M4/M5）。
+需要 macOS 15.0+ (Sequoia)、Python 3.11–3.13 和 Apple Silicon（M1/M2/M3/M4/M5）。
+
+> **关于原生自定义内核：** GLM-5.2、MiniMax M3 和 Qwen3.5 需要这些内核，缺少时会在没有提示的情况下回退到慢得多的通用路径。`make install` 会一并构建内核并检查每个内核都能加载，这需要带 Metal 工具链的完整 Xcode（`xcodebuild -downloadComponent MetalToolchain`），仅有 Command Line Tools 不够。没有 Xcode 时，请使用已预编译内核的官方 DMG，或使用 `make install-no-kernels`。`make kernels` 只从头重新构建内核。检查安装：
+>
+> ```bash
+> python -c "from omlx.custom_kernels import native_kernel_status; print(native_kernel_status())"
+> ```
 
 ## 快速开始
 
@@ -350,11 +353,15 @@ FastAPI Server (OpenAI / Anthropic API)
 
 | 命令 | 作用 |
 |---|---|
-| `make dev` | 以 editable 模式安装服务器、Web UI 和开发工具 |
-| `make kernels` | 删除已构建的原生自定义内核并重新编译，然后检查每个内核都能加载（需要完整 Xcode） |
+| `make install` | 以 editable 模式安装服务器和 Web UI，并构建原生自定义内核 |
+| `make install-no-kernels` | 不含内核的相同安装（适用于没有完整 Xcode 的环境） |
+| `make mcp` | 添加 MCP（Model Context Protocol）支持 |
+| `make dev` | 与 `make install` 相同，另含开发工具（`make dev-no-kernels` 不含内核） |
+| `make kernels` | 删除已构建的原生自定义内核并重新编译，然后检查每个内核都能加载 |
 | `make web` | 重新构建 Web UI 的 CSS 并规范化翻译文件 |
-| `make app` | 暂存可运行的 `oMLX.app` |
-| `make app-kernels` | 暂存包含新编译原生自定义内核的 `oMLX.app` |
+| `make app` | 暂存包含新编译原生自定义内核的 `oMLX.app` |
+
+构建原生自定义内核需要带 Metal 工具链的完整 Xcode（`xcodebuild -downloadComponent MetalToolchain`）。
 
 ### CLI 服务器
 
@@ -374,7 +381,7 @@ Web 管理界面位于 `apps/omlx-web/`，并包含在同一个包中，因此 `
 原生 SwiftUI 应用位于 `apps/omlx-mac/`，需要 Xcode 26.5+ 和 Python 3.11+。venvstacks 已声明为 dev 依赖，因此 `make dev`（或 `uv sync --dev`）会引入固定版本。若偏好主机全局工具运行器，也可使用 `uvx venvstacks` 或 `pipx run venvstacks`。
 
 ```bash
-# 暂存可运行的 oMLX.app（xcodebuild + venvstacks Python 层 + ad-hoc 签名）
+# 暂存可运行的 oMLX.app（xcodebuild + venvstacks Python 层 + 原生内核 + ad-hoc 签名）
 make app
 
 # 结果在 apps/omlx-mac/build/Stage/oMLX.app
@@ -382,9 +389,6 @@ open apps/omlx-mac/build/Stage/oMLX.app
 
 # 强制重建 venvstacks（默认按指纹缓存）
 apps/omlx-mac/Scripts/build.sh release --rebuild-donor
-
-# 暂存包含可选 GLM-5.2 / MiniMax M3 原生自定义内核的应用
-make app-kernels
 ```
 
 首次 cold 构建需要 10–20 分钟（venvstacks Python 层组装）。后续构建复用 `packaging/_export/` 缓存，约 4 分钟完成。层配置请参阅 [packaging/README.md](packaging/README.md)，Swift 源码请参阅 [apps/omlx-mac/](apps/omlx-mac/)。

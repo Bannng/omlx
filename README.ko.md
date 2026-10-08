@@ -83,25 +83,24 @@ brew install jundot/omlx/omlx --HEAD --with-custom-kernel
 ```bash
 git clone https://github.com/jundot/omlx.git
 cd omlx
-pip install -e .          # 코어만
-pip install -e ".[mcp]"   # MCP (Model Context Protocol) 포함
-
-# GLM-5.2 / MiniMax M3 / Qwen3.5 네이티브 커스텀 커널
-# (해당 계열 모델을 서빙한다면 강력히 권장 -- 아래 노트 참고)
-make kernels   # 기존 커널 빌드를 지우고 다시 컴파일
+make install                # 웹 UI와 네이티브 커스텀 커널까지 editable 설치
+make mcp                    # 선택: MCP (Model Context Protocol) 지원 추가
 ```
 
 macOS 15.0+ (Sequoia), Python 3.11–3.13, Apple Silicon (M1/M2/M3/M4/M5)이 필요합니다.
 
-> **네이티브 커스텀 커널 관련 노트:** 일반 `pip install -e .` 는 커널을 빌드하지
-> 않으며, 해당 모델 계열은 아무런 경고 없이 훨씬 느린 일반 경로로 폴백합니다.
-> GLM-5.2의 경우 fused DSA 프리필이 커널을 쓸 때 약 30배 빠르고(M3 Ultra에서 845 vs
-> ~29 tok/s 측정), 폴백 경로는 메모리도 더 씁니다(#2137). 커널 빌드에는 Metal
-> 툴체인이 필요한데 Command Line Tools만으로는 제공되지 않습니다(`xcrun: error:
-> unable to find utility "metal"`): 전체 Xcode를 설치하거나, 커널이 미리 컴파일되어
-> 포함된 공식 DMG를 사용하세요. Homebrew에서는 `brew install jundot/omlx/omlx --HEAD
-> --with-custom-kernel` 로 빌드할 수 있지만 이 빌드에도 전체 Xcode가 필요합니다.
-> 설치 확인:
+> **네이티브 커스텀 커널 관련 노트:** GLM-5.2, MiniMax M3, Qwen3.5에는 커널이
+> 필요합니다. 커널이 없으면 해당 모델 계열은 아무런 경고 없이 훨씬 느린 일반 경로로
+> 폴백합니다. GLM-5.2의 경우 fused DSA 프리필이 커널을 쓸 때 약 30배 빠르고(M3
+> Ultra에서 845 vs ~29 tok/s 측정), 폴백 경로는 메모리도 더 씁니다(#2137).
+> `make install` 은 커널을 빌드하고 모두 로드되는지 확인합니다. 여기에는 Metal
+> 툴체인이 포함된 전체 Xcode가 필요합니다(`xcodebuild -downloadComponent
+> MetalToolchain`). Command Line Tools만으로는 제공되지 않습니다(`xcrun: error:
+> unable to find utility "metal"`). Xcode가 없다면 커널이 미리 컴파일되어 포함된
+> 공식 DMG를 쓰거나 `make install-no-kernels` 를 사용하세요. 일반 `pip install -e .`
+> 도 커널을 빌드하지 않습니다. `make kernels` 는 커널만 처음부터 다시 빌드합니다.
+> Homebrew에서는 `brew install jundot/omlx/omlx --HEAD --with-custom-kernel` 로
+> 빌드할 수 있고, 이 빌드에도 전체 Xcode가 필요합니다. 어떤 설치든 확인하려면:
 >
 > ```bash
 > python -c "from omlx.custom_kernels import native_kernel_status; print(native_kernel_status())"
@@ -395,11 +394,15 @@ FastAPI Server (OpenAI / Anthropic API)
 
 | 명령 | 하는 일 |
 |---|---|
-| `make dev` | 서버와 웹 UI를 개발 도구와 함께 editable 모드로 설치 |
-| `make kernels` | 기존 네이티브 커스텀 커널 빌드를 지우고 다시 컴파일한 뒤 모두 로드되는지 확인 (Xcode 필요) |
+| `make install` | 서버와 웹 UI를 editable 모드로 설치한 뒤 네이티브 커스텀 커널까지 빌드 |
+| `make install-no-kernels` | 커널 없이 같은 설치 (전체 Xcode가 없는 환경용) |
+| `make mcp` | MCP (Model Context Protocol) 지원 추가 |
+| `make dev` | `make install`과 같고 개발 도구 포함 (`make dev-no-kernels`는 커널 제외) |
+| `make kernels` | 기존 네이티브 커스텀 커널 빌드를 지우고 다시 컴파일한 뒤 모두 로드되는지 확인 |
 | `make web` | 웹 UI CSS를 다시 빌드하고 번역 파일을 정규화 |
-| `make app` | 실행 가능한 `oMLX.app` 스테이징 |
-| `make app-kernels` | 네이티브 커스텀 커널을 새로 컴파일해 포함한 `oMLX.app` 스테이징 |
+| `make app` | 네이티브 커스텀 커널을 새로 컴파일해 포함한 `oMLX.app` 스테이징 |
+
+네이티브 커스텀 커널 빌드에는 Metal 툴체인이 포함된 전체 Xcode가 필요합니다(`xcodebuild -downloadComponent MetalToolchain`).
 
 ### CLI 서버
 
@@ -419,7 +422,7 @@ pytest -m "not slow"
 네이티브 SwiftUI 앱은 `apps/omlx-mac/`에 있습니다. Xcode 26.5+, Python 3.11+가 필요합니다. venvstacks는 dev 의존성으로 선언되어 있어 `make dev` (또는 `uv sync --dev`)로 핀된 버전이 설치됩니다. 호스트 전역 도구 러너를 선호하면 `uvx venvstacks` 또는 `pipx run venvstacks` 로도 동작합니다.
 
 ```bash
-# 실행 가능한 oMLX.app 스테이징 (xcodebuild + venvstacks Python 레이어 + ad-hoc 서명)
+# 실행 가능한 oMLX.app 스테이징 (xcodebuild + venvstacks Python 레이어 + 네이티브 커널 + ad-hoc 서명)
 make app
 
 # 결과는 apps/omlx-mac/build/Stage/oMLX.app
@@ -427,9 +430,6 @@ open apps/omlx-mac/build/Stage/oMLX.app
 
 # venvstacks 강제 재빌드 (그 외에는 fingerprint 로 캐시됨)
 apps/omlx-mac/Scripts/build.sh release --rebuild-donor
-
-# 선택 GLM-5.2 / MiniMax M3 네이티브 커스텀 커널을 포함해 스테이징
-make app-kernels
 ```
 
 첫 cold 빌드는 10–20분 소요됩니다 (venvstacks Python 레이어 어셈블리). 이후 빌드는 `packaging/_export/` 캐시를 재사용해 약 4분에 끝납니다. 레이어 구성은 [packaging/README.md](packaging/README.md), Swift 소스는 [apps/omlx-mac/](apps/omlx-mac/) 를 참조하세요.
