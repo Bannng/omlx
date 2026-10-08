@@ -2,9 +2,9 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
-BASE = (ROOT / "omlx/admin/templates/base.html").read_text(encoding="utf-8")
-LOGIN = (ROOT / "omlx/admin/templates/login.html").read_text(encoding="utf-8")
-THEME = (ROOT / "omlx/admin/static/css/theme.css").read_text(encoding="utf-8")
+BASE = (ROOT / "omlx_web/templates/base.html").read_text(encoding="utf-8")
+LOGIN = (ROOT / "omlx_web/templates/login.html").read_text(encoding="utf-8")
+THEME = (ROOT / "omlx_web/static/css/theme.css").read_text(encoding="utf-8")
 
 
 def _palette_hex(name: str) -> str:

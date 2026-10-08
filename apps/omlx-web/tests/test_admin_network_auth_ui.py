@@ -57,7 +57,7 @@ def test_network_auth_ui_behavior():
 
 
 def test_network_auth_i18n_keys_exist_in_every_locale():
-    i18n_dir = ROOT / "omlx/admin/i18n"
+    i18n_dir = ROOT / "omlx_web/i18n"
 
     for locale_path in sorted(i18n_dir.glob("*.json")):
         translations = json.loads(locale_path.read_text())

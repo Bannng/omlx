@@ -4,7 +4,7 @@ These rules cover the admin web UI under `omlx/admin` (login and dashboard). The
 
 ## Colors
 
-Every color is defined in `omlx/admin/static/css/theme.css`, which `base.html` loads before `tailwind.css` and the page stylesheets.
+Every color is defined in `apps/omlx-web/omlx_web/static/css/theme.css`, which `base.html` loads before `tailwind.css` and the page stylesheets.
 
 - Palette entries are named `--palette-<family>-<step>` and hold `R G B` channels, so both `rgb(var(--palette-blue-500))` and `rgb(var(--palette-blue-500) / 0.2)` work.
 - Semantic tokens name a role and point at the palette: `--bg-primary`, `--bg-secondary`, `--bg-tertiary`, `--text-primary` ... `--text-muted`, `--border-faint`, `--border-normal`, `--code-bg`, `--link-color`, `--btn-primary*`, `--text-danger`, `--bg-danger-hover`, `--timeline-accent`, `--focus-ring-color`.

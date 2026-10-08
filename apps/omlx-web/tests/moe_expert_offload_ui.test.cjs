@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, '..');
 const context = {localStorage: {getItem: () => null}, window: {t: k => k}, console,
     alert: message => {throw Error(message)}};
 vm.createContext(context);
-vm.runInContext(fs.readFileSync(path.join(root, 'omlx/admin/static/js/dashboard.js'), 'utf8'), context);
+vm.runInContext(fs.readFileSync(path.join(root, 'omlx_web/static/js/dashboard.js'), 'utf8'), context);
 (async () => {
     const app = context.dashboard();
     app.loadModels = async () => {};
@@ -26,7 +26,7 @@ vm.runInContext(fs.readFileSync(path.join(root, 'omlx/admin/static/js/dashboard.
         app.modelSettings = app.buildModelSettingsState(app.selectedModel, payload);
         assert.equal(app.modelSettings[fraction], value);
     }
-    const html = fs.readFileSync(path.join(root, 'omlx/admin/templates/dashboard/_modal_model_settings.html'), 'utf8');
+    const html = fs.readFileSync(path.join(root, 'omlx_web/templates/dashboard/_modal_model_settings.html'), 'utf8');
     const offload = html.split('<!-- MoE Expert Offload -->')[1].split('<!-- IndexCache')[0];
     const condition = offload.match(/x-if="([^"]+)"/)[1];
     for (const supported of [true, false, undefined]) {

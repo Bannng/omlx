@@ -4,7 +4,7 @@
 from pathlib import Path
 
 CHAT_TEMPLATE = (
-    Path(__file__).parents[1] / "omlx" / "admin" / "templates" / "chat.html"
+    Path(__file__).parents[1] / "omlx_web" / "templates" / "chat.html"
 )
 
 

@@ -5,7 +5,8 @@ Downloads Tailwind v3 standalone CLI if needed and compiles CSS.
 Requires no Node.js installation.
 
 Usage:
-    cd omlx/omlx/admin
+    make web                     # From the repo root
+    cd apps/omlx-web
     python build_css.py          # Build minified CSS
     python build_css.py --watch  # Watch mode for development
 """
@@ -17,7 +18,7 @@ import urllib.request
 from pathlib import Path
 
 TAILWIND_VERSION = "v3.4.17"
-ADMIN_DIR = Path(__file__).parent
+WEB_DIR = Path(__file__).parent
 
 
 def get_binary_name() -> str:
@@ -36,7 +37,7 @@ def get_binary_name() -> str:
 def ensure_binary() -> Path:
     """Download Tailwind standalone CLI if not present."""
     binary_name = get_binary_name()
-    binary_path = ADMIN_DIR / binary_name
+    binary_path = WEB_DIR / binary_name
 
     if binary_path.exists():
         return binary_path
@@ -56,9 +57,9 @@ def ensure_binary() -> Path:
 def main() -> None:
     binary = ensure_binary()
 
-    input_css = ADMIN_DIR / "src" / "input.css"
-    output_css = ADMIN_DIR / "static" / "css" / "tailwind.css"
-    config = ADMIN_DIR / "tailwind.config.js"
+    input_css = WEB_DIR / "src" / "input.css"
+    output_css = WEB_DIR / "omlx_web" / "static" / "css" / "tailwind.css"
+    config = WEB_DIR / "tailwind.config.js"
 
     output_css.parent.mkdir(parents=True, exist_ok=True)
 
@@ -75,7 +76,7 @@ def main() -> None:
         print("Watching for changes... (Ctrl+C to stop)")
 
     print(f"Building: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=ADMIN_DIR)
+    result = subprocess.run(cmd, cwd=WEB_DIR)
 
     if result.returncode == 0 and "--watch" not in sys.argv:
         size = output_css.stat().st_size

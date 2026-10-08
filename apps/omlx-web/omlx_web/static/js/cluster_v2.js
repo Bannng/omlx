@@ -1,5 +1,5 @@
 // oMLX Cluster v2 wizard — Alpine.js component backing
-// omlx/admin/templates/dashboard/_cluster_v2.html.
+// omlx_web/templates/dashboard/_cluster_v2.html.
 //
 // Contract (ops/notes/omlx_cluster_v2_spec.md, Module C): consume ONLY the
 // Module A/B endpoints plus the pre-existing planner/activate API:
@@ -129,7 +129,7 @@ function clusterV2Wizard() {
     // English fallbacks for the cluster.v2.* strings the wizard adds. The
     // dashboard resolves window.t against en.json-filled locale_json, so these
     // only matter when window.t is unavailable (offline component tests).
-    // Keep in sync with omlx/admin/i18n/en.json.
+    // Keep in sync with omlx_web/i18n/en.json.
     const CLUSTER_V2_STRINGS = {
         'cluster.v2.strategy.title': 'How the model is split',
         'cluster.v2.strategy.auto': 'Auto',

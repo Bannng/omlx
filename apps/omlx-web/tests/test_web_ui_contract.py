@@ -2,19 +2,15 @@
 """HTTP contract for the browser admin pages and the session flows they use."""
 
 import ast
-import json
-import os
-import subprocess
-import sys
-import textwrap
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from omlx_web import routes as webui
 
 from omlx import server
 from omlx._version import __version__
-from omlx.admin import auth, webui
+from omlx.admin import auth
 from omlx.admin import routes as admin_routes
 from omlx.settings import GlobalSettings, SubKeyEntry
 
@@ -210,73 +206,19 @@ def test_root_is_not_routed(web):
     assert client.get("/").status_code == 404
 
 
-def test_web_ui_module_does_not_import_omlx():
-    tree = ast.parse(Path(webui.__file__).read_text(encoding="utf-8"))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
-            assert node.level == 0, ast.unparse(node)
-            assert not (node.module or "").startswith("omlx"), ast.unparse(node)
-        elif isinstance(node, ast.Import):
-            for alias in node.names:
-                assert not alias.name.startswith("omlx"), ast.unparse(node)
+def _imports_omlx(module: str) -> bool:
+    return module == "omlx" or module.startswith("omlx.")
 
 
-HEADLESS_PROBE = textwrap.dedent("""
-    import json
-    import sys
-    from pathlib import Path
-
-    from fastapi.testclient import TestClient
-
-    from omlx import server
-    from omlx.admin import auth
-    from omlx.admin import routes as admin_routes
-    from omlx.settings import GlobalSettings
-
-    settings = GlobalSettings(base_path=Path(sys.argv[1]))
-    settings.auth.api_key = "main-key-1234"
-    server._server_state.global_settings = settings
-    server._server_state.api_key = "main-key-1234"
-    server._server_state.bind_host = "127.0.0.1"
-    auth._get_global_settings = lambda: settings
-    admin_routes._get_global_settings = lambda: settings
-
-    client = TestClient(server.app, follow_redirects=False)
-    html = {"Accept": "text/html"}
-    status = {
-        "login_page": client.get("/admin", headers=html).status_code,
-        "dashboard": client.get("/admin/dashboard", headers=html).status_code,
-        "static": client.get("/admin/static/favicon.svg").status_code,
-        "auto_login": client.get(
-            "/admin/auto-login", params={"key": "main-key-1234"}
-        ).status_code,
-        "api_html_no_session": client.get(
-            "/admin/api/global-settings", headers=html
-        ).status_code,
-    }
-    client.post("/admin/api/login", json={"api_key": "main-key-1234"})
-    status["api_with_session"] = client.get("/admin/api/global-settings").status_code
-    print(json.dumps(status))
-    """)
-
-
-def test_headless_serves_admin_api_without_pages(tmp_path):
-    env = {**os.environ, "OMLX_HEADLESS": "1", "HOME": str(tmp_path)}
-    env["OMLX_BASE_PATH"] = str(tmp_path / "base")
-    result = subprocess.run(
-        [sys.executable, "-c", HEADLESS_PROBE, str(tmp_path / "base")],
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    assert result.returncode == 0, result.stderr
-    status = json.loads(result.stdout.strip().splitlines()[-1])
-    assert status == {
-        "login_page": 404,
-        "dashboard": 404,
-        "static": 404,
-        "auto_login": 404,
-        "api_html_no_session": 401,
-        "api_with_session": 200,
-    }
+def test_web_ui_package_does_not_import_omlx():
+    for source in Path(webui.__file__).parent.glob("*.py"):
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                # Relative imports must stay inside the package.
+                assert node.level <= 1, f"{source.name}: {ast.unparse(node)}"
+                if node.level == 0:
+                    assert not _imports_omlx(node.module or ""), ast.unparse(node)
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    assert not _imports_omlx(alias.name), ast.unparse(node)

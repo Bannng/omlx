@@ -24,13 +24,13 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 ROOT = Path(__file__).resolve().parents[1]
-TEMPLATES = ROOT / "omlx/admin/templates"
-I18N = ROOT / "omlx/admin/i18n"
+TEMPLATES = ROOT / "omlx_web/templates"
+I18N = ROOT / "omlx_web/i18n"
 
 BASE = (TEMPLATES / "base.html").read_text(encoding="utf-8")
 CHAT = (TEMPLATES / "chat.html").read_text(encoding="utf-8")
 DASHBOARD_NAV = (TEMPLATES / "dashboard/_navbar.html").read_text(encoding="utf-8")
-DASHBOARD_JS = (ROOT / "omlx/admin/static/js/dashboard.js").read_text(encoding="utf-8")
+DASHBOARD_JS = (ROOT / "omlx_web/static/js/dashboard.js").read_text(encoding="utf-8")
 
 
 def _env():

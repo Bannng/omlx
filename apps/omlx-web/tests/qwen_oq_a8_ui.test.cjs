@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const assert = require('node:assert/strict');
 
 const source = fs.readFileSync(
-    path.join(__dirname, '../omlx/admin/static/js/dashboard.js'), 'utf8'
+    path.join(__dirname, '../omlx_web/static/js/dashboard.js'), 'utf8'
 );
 const context = {
     localStorage: {getItem: () => null},

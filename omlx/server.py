@@ -40,6 +40,8 @@ The server provides:
 
 import argparse
 import asyncio
+import importlib
+import importlib.util
 import inspect
 import json
 import logging
@@ -781,7 +783,6 @@ except ImportError:
     pass
 
 # Include admin routes
-from .admin import webui
 from .admin.auth import _RedirectToLogin, require_admin, set_web_ui_enabled
 from .admin.routes import (
     configured_api_key,
@@ -797,12 +798,25 @@ set_admin_getters(
     lambda: _server_state.settings_manager,
     lambda: _server_state.global_settings,
 )
-if os.environ.get("OMLX_HEADLESS", "0") == "1":
+
+
+def _load_web_ui():
+    """Return the omlx_web package, or None to serve the API only."""
+    if os.environ.get("OMLX_HEADLESS", "0") == "1":
+        logger.info("Headless mode: serving the API without the web UI")
+        return None
+    if importlib.util.find_spec("omlx_web") is None:
+        logger.warning("Web UI package omlx_web is not installed; serving the API only")
+        return None
+    return importlib.import_module("omlx_web")
+
+
+_web_ui = _load_web_ui()
+if _web_ui is None:
     set_web_ui_enabled(False)
-    logger.info("Headless mode: serving the API without the web UI")
 else:
-    webui.set_host(
-        webui.WebUIHost(
+    _web_ui.set_host(
+        _web_ui.WebUIHost(
             version=__version__,
             require_admin=require_admin,
             is_admin=is_admin_request,
@@ -811,7 +825,7 @@ else:
         )
     )
     # Before admin_router so the page routes keep their original order.
-    app.include_router(webui.router)
+    app.include_router(_web_ui.router)
 app.include_router(admin_router)
 
 _cluster_routes_registered = False

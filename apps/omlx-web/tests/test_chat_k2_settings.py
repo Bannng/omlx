@@ -31,7 +31,7 @@ def test_saved_thinking_settings_respect_model_capabilities(
     node = shutil.which("node")
     if not node:
         pytest.skip("Node.js is required to exercise Chat JavaScript")
-    source = (Path(__file__).parents[1] / "omlx/admin/templates/chat.html").read_text()
+    source = (Path(__file__).parents[1] / "omlx_web/templates/chat.html").read_text()
     names = [
         "currentModelInfo",
         "thinkingModes",

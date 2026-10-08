@@ -22,14 +22,14 @@ from pathlib import Path
 
 import pytest
 
-from omlx.admin import webui
+from omlx_web import routes as webui
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "tests/ui/fixtures/cluster_v2"
 
-TEMPLATE = "omlx/admin/templates/dashboard/_cluster_v2.html"
-JAVASCRIPT = "omlx/admin/static/js/cluster_v2.js"
-DASHBOARD = "omlx/admin/templates/dashboard.html"
+TEMPLATE = "omlx_web/templates/dashboard/_cluster_v2.html"
+JAVASCRIPT = "omlx_web/static/js/cluster_v2.js"
+DASHBOARD = "omlx_web/templates/dashboard.html"
 
 WIZARD_STATES = (
     "empty",
@@ -1185,7 +1185,7 @@ component.apiFetch = async (url, options) => {
 
 def test_dark_tensor_controls_use_explicit_high_contrast_palette():
     template = _read(TEMPLATE)
-    stylesheet = _read("omlx/admin/static/css/dashboard.css")
+    stylesheet = _read("omlx_web/static/css/dashboard.css")
 
     assert (
         ":data-selected=\"planStrategy === option.key ? 'true' : 'false'\"" in template
@@ -1348,7 +1348,7 @@ def _run_wizard(body: str) -> dict:
     # strings. A missing key falls through as the key itself, which makes a
     # forgotten catalog entry visible rather than silently blank.
     catalog = json.loads(
-        (ROOT / "omlx/admin/i18n/en.json").read_text(encoding="utf-8")
+        (ROOT / "omlx_web/i18n/en.json").read_text(encoding="utf-8")
     )
     script = f"""
 {_read(JAVASCRIPT)}

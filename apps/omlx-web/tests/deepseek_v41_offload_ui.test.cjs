@@ -11,7 +11,7 @@ const context = {
     alert: message => {throw Error(message)},
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync(path.join(root, 'omlx/admin/static/js/dashboard.js'), 'utf8'), context);
+vm.runInContext(fs.readFileSync(path.join(root, 'omlx_web/static/js/dashboard.js'), 'utf8'), context);
 (async () => {
     const app = context.dashboard();
     app.loadModels = async () => {};
@@ -29,7 +29,7 @@ vm.runInContext(fs.readFileSync(path.join(root, 'omlx/admin/static/js/dashboard.
         assert.equal(app.modelSettings[key], forced || saved);
         assert.equal(app.modelSettings[key+'_forced'], forced);
         const html = fs.readFileSync(path.join(root,
-            'omlx/admin/templates/dashboard/_modal_model_settings.html'), 'utf8');
+            'omlx_web/templates/dashboard/_modal_model_settings.html'), 'utf8');
         const section = html.split('<!-- DeepSeek V4.1 Engram SSD Offload -->')[1]
             .split('<!-- Thinking Budget -->')[0];
         const click = section.match(/@click="([^"]+)"/)[1];
@@ -59,7 +59,7 @@ vm.runInContext(fs.readFileSync(path.join(root, 'omlx/admin/static/js/dashboard.
         {path: 'llama', model_type: 'llama'},
     ];
     const html = fs.readFileSync(path.join(root,
-        'omlx/admin/templates/dashboard/_models.html'), 'utf8');
+        'omlx_web/templates/dashboard/_models.html'), 'utf8');
     const effect = html.match(/x-effect="([^"\n]*oqApplyModelPolicy[^"\n]*)"/)[1];
     let estimatedLevel;
     app.oqRefreshEstimate = () => { estimatedLevel = app.oqLevel; };

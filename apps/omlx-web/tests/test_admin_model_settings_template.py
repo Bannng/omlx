@@ -11,19 +11,19 @@ import pytest
 def _model_settings_template() -> str:
     root = Path(__file__).resolve().parents[1]
     return (
-        root / "omlx/admin/templates/dashboard/_modal_model_settings.html"
+        root / "omlx_web/templates/dashboard/_modal_model_settings.html"
     ).read_text()
 
 
 def _dashboard_script() -> str:
     root = Path(__file__).resolve().parents[1]
-    return (root / "omlx/admin/static/js/dashboard.js").read_text()
+    return (root / "omlx_web/static/js/dashboard.js").read_text()
 
 
 def _status_template() -> str:
     root = Path(__file__).resolve().parents[1]
     return (
-        root / "omlx/admin/templates/dashboard/blocks/_active_models.html"
+        root / "omlx_web/templates/dashboard/blocks/_active_models.html"
     ).read_text()
 
 
@@ -125,7 +125,7 @@ def test_model_settings_feature_labels_use_i18n_keys():
 
 def test_model_settings_feature_i18n_keys_exist_in_every_locale():
     root = Path(__file__).resolve().parents[1]
-    i18n_dir = root / "omlx/admin/i18n"
+    i18n_dir = root / "omlx_web/i18n"
     keys = {
         "modal.model_settings.reasoning_parser",
         "modal.model_settings.specprefill",
@@ -384,7 +384,7 @@ def test_oq_a8_labels_use_i18n_keys():
 
 def test_oq_a8_i18n_keys_exist_in_every_locale():
     root = Path(__file__).resolve().parents[1]
-    i18n_dir = root / "omlx/admin/i18n"
+    i18n_dir = root / "omlx_web/i18n"
     keys = {
         "modal.model_settings.qwen_oq_a8",
         "modal.model_settings.qwen_oq_a8_hint",
@@ -416,7 +416,7 @@ def test_profile_api_toggle_state_uses_i18n_keys():
 
 def test_profile_api_toggle_i18n_keys_exist_in_every_locale():
     root = Path(__file__).resolve().parents[1]
-    i18n_dir = root / "omlx/admin/i18n"
+    i18n_dir = root / "omlx_web/i18n"
     english = {
         "modal.model_settings.profiles.expose_as_model_on": "ON",
         "modal.model_settings.profiles.expose_as_model_off": "OFF",
@@ -464,11 +464,11 @@ const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const source = fs.readFileSync('omlx/admin/static/js/dashboard.js', 'utf8');
+const source = fs.readFileSync('omlx_web/static/js/dashboard.js', 'utf8');
 // The dashboard resolves its copy through window.t, so feed the component the
 // shipped English catalog exactly as base.html does; the assertions below then
 // read the strings the app really renders.
-const catalog = JSON.parse(fs.readFileSync('omlx/admin/i18n/en.json', 'utf8'));
+const catalog = JSON.parse(fs.readFileSync('omlx_web/i18n/en.json', 'utf8'));
 function setup(fetch) {
     const context = {
         localStorage: {getItem: () => null},
@@ -610,7 +610,7 @@ def test_dashboard_layout_template_contract():
     from jinja2 import Environment, FileSystemLoader
 
     root = Path(__file__).resolve().parents[1]
-    admin = root / "omlx/admin"
+    admin = root / "omlx_web"
     env = Environment(loader=FileSystemLoader(str(admin / "templates")))
     env.globals.update(t=lambda key: key, static=lambda path: path)
     status = env.get_template("dashboard/_status.html").render()
@@ -666,7 +666,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 
-const source = fs.readFileSync('omlx/admin/static/js/dashboard_layout.js', 'utf8');
+const source = fs.readFileSync('omlx_web/static/js/dashboard_layout.js', 'utf8');
 const context = { window: {} };
 vm.runInNewContext(source, context);
 const lib = context.window.DashboardLayout;

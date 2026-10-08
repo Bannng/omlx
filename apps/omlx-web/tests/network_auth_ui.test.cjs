@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const source = fs.readFileSync(
-    path.join(__dirname, '../omlx/admin/static/js/dashboard.js'), 'utf8'
+    path.join(__dirname, '../omlx_web/static/js/dashboard.js'), 'utf8'
 );
 function fixture(defaults, defaultsOK = true) {
     const requests = [];
@@ -190,7 +190,7 @@ test('the rate reaches the progress line and both queue templates', () => {
     // Each queue (HuggingFace and ModelScope) hands the task to the shared
     // formatters: one progress line and one queued-row rate per queue.
     const template = fs.readFileSync(
-        path.join(__dirname, '../omlx/admin/templates/dashboard/_models.html'),
+        path.join(__dirname, '../omlx_web/templates/dashboard/_models.html'),
         'utf8'
     );
     assert.ok(template.split('x-text="formatProgress(task)"').length - 1 >= 2);

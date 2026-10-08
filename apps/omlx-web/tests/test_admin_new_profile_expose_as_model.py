@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _model_settings_template() -> str:
     return (
-        ROOT / "omlx/admin/templates/dashboard/_modal_model_settings.html"
+        ROOT / "omlx_web/templates/dashboard/_modal_model_settings.html"
     ).read_text()
 
 
@@ -36,7 +36,7 @@ def test_new_profile_resets_api_exposure():
 
 
 def test_create_profile_sends_api_exposure():
-    script = (ROOT / "omlx/admin/static/js/dashboard.js").read_text()
+    script = (ROOT / "omlx_web/static/js/dashboard.js").read_text()
     body = script.split("async createProfile()", 1)[1].split(
         "async applyProfileToForm(", 1
     )[0]

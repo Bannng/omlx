@@ -7,12 +7,12 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SETTINGS = (
-    ROOT / "omlx/admin/templates/dashboard/_settings.html"
+    ROOT / "omlx_web/templates/dashboard/_settings.html"
 ).read_text()
 
 
 def test_decode_priority_copy_describes_prefill_behavior():
-    translations = json.loads((ROOT / "omlx/admin/i18n/en.json").read_text())
+    translations = json.loads((ROOT / "omlx_web/i18n/en.json").read_text())
 
     assert (
         translations["settings.resource.decode_fairness"]
@@ -41,7 +41,7 @@ def test_loading_cache_settings_preserves_size_until_slider_edit():
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const source = fs.readFileSync('omlx/admin/static/js/dashboard.js', 'utf8');
+const source = fs.readFileSync('omlx_web/static/js/dashboard.js', 'utf8');
 (async () => {
     for (const size of ['auto', '1536MB']) {
         const context = {
@@ -80,7 +80,7 @@ def test_settings_section_anchor_does_not_outlive_its_tab():
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const source = fs.readFileSync('omlx/admin/static/js/dashboard.js', 'utf8');
+const source = fs.readFileSync('omlx_web/static/js/dashboard.js', 'utf8');
 const location = {};
 const setUrl = (href) => {
     const url = new URL(href, 'http://h/admin/dashboard');

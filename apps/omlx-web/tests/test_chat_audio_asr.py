@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-I18N_DIR = Path(__file__).parent.parent / "omlx" / "admin" / "i18n"
+I18N_DIR = Path(__file__).parent.parent / "omlx_web" / "i18n"
 CHAT_TEMPLATE = (
-    Path(__file__).parent.parent / "omlx" / "admin" / "templates" / "chat.html"
+    Path(__file__).parent.parent / "omlx_web" / "templates" / "chat.html"
 )
 
 # Required i18n keys used by the chat ASR feature

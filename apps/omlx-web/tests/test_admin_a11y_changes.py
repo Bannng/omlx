@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-ADMIN_DIR = ROOT / "omlx" / "admin"
+ADMIN_DIR = ROOT / "omlx_web"
 TEMPLATES = ADMIN_DIR / "templates"
 I18N = ADMIN_DIR / "i18n"
 

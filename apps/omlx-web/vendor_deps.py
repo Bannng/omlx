@@ -2,10 +2,10 @@
 """Download vendored dependencies for offline admin panel.
 
 All libraries use permissive licenses (MIT/ISC/BSD/OFL) that allow bundling.
-Run this script to download/update all CDN dependencies to static/.
+Run this script to download/update all CDN dependencies to omlx_web/static/.
 
 Usage:
-    cd omlx/omlx/admin
+    cd apps/omlx-web
     python vendor_deps.py
 """
 
@@ -14,7 +14,7 @@ import ssl
 import urllib.request
 from pathlib import Path
 
-STATIC = Path(__file__).parent / "static"
+STATIC = Path(__file__).parent / "omlx_web" / "static"
 
 # SSL context for HTTPS downloads
 SSL_CTX = ssl.create_default_context()

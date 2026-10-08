@@ -11,12 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from omlx.admin import webui
+from omlx_web import routes as webui
 
 ROOT = Path(__file__).resolve().parents[1]
-DASHBOARD = ROOT / "omlx/admin/templates/dashboard.html"
-TEMPLATE = ROOT / "omlx/admin/templates/dashboard/_cluster_v2.html"
-JAVASCRIPT = ROOT / "omlx/admin/static/js/cluster_v2.js"
+DASHBOARD = ROOT / "omlx_web/templates/dashboard.html"
+TEMPLATE = ROOT / "omlx_web/templates/dashboard/_cluster_v2.html"
+JAVASCRIPT = ROOT / "omlx_web/static/js/cluster_v2.js"
 
 
 def test_dashboard_renders_only_the_cluster_v2_flow():
@@ -32,7 +32,7 @@ def test_dashboard_renders_only_the_cluster_v2_flow():
 
 def test_cluster_navigation_exists_for_desktop_and_mobile():
     navbar = (
-        ROOT / "omlx/admin/templates/dashboard/_navbar.html"
+        ROOT / "omlx_web/templates/dashboard/_navbar.html"
     ).read_text(encoding="utf-8")
 
     assert navbar.count("setMainTab('cluster')") == 2
@@ -42,7 +42,7 @@ def test_cluster_navigation_exists_for_desktop_and_mobile():
 
 def test_distributed_inference_remains_an_advanced_restart_scoped_opt_in():
     settings = (
-        ROOT / "omlx/admin/templates/dashboard/_settings.html"
+        ROOT / "omlx_web/templates/dashboard/_settings.html"
     ).read_text(encoding="utf-8")
 
     assert "settings.advanced.distributed_inference" in settings
@@ -195,7 +195,7 @@ def test_cluster_v2_javascript_parses():
 
 
 def test_every_dashboard_locale_names_cluster_tab():
-    locale_dir = ROOT / "omlx/admin/i18n"
+    locale_dir = ROOT / "omlx_web/i18n"
     for path in locale_dir.glob("*.json"):
         payload = json.loads(path.read_text(encoding="utf-8"))
         assert payload.get("navbar.tab.cluster"), path.name

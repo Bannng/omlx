@@ -9,13 +9,13 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-I18N_DIR = ROOT / "omlx" / "admin" / "i18n"
+I18N_DIR = ROOT / "omlx_web" / "i18n"
 
 
 def test_external_accuracy_diagnostics_are_wired_to_dashboard():
-    js = (ROOT / "omlx/admin/static/js/dashboard.js").read_text()
+    js = (ROOT / "omlx_web/static/js/dashboard.js").read_text()
     template = (
-        ROOT / "omlx/admin/templates/dashboard/_bench_accuracy.html"
+        ROOT / "omlx_web/templates/dashboard/_bench_accuracy.html"
     ).read_text()
 
     assert "valid_response_count" in js
@@ -54,7 +54,7 @@ def test_benchmark_text_exports_preserve_literal_values():
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const catalog = JSON.parse(fs.readFileSync('omlx/admin/i18n/en.json', 'utf8'));
+const catalog = JSON.parse(fs.readFileSync('omlx_web/i18n/en.json', 'utf8'));
 let download;
 const context = {
     window: {t: key => catalog[key] ?? key},
@@ -64,7 +64,7 @@ const context = {
     URL: {createObjectURL: blob => {download = blob; return 'blob:test';},
           revokeObjectURL() {}},
 };
-const source = fs.readFileSync('omlx/admin/static/js/dashboard.js', 'utf8');
+const source = fs.readFileSync('omlx_web/static/js/dashboard.js', 'utf8');
 const state = vm.runInNewContext(source + '\n dashboard;', context)();
 
 (async () => {
@@ -116,9 +116,9 @@ const state = vm.runInNewContext(source + '\n dashboard;', context)();
 
 
 def test_local_truncation_is_wired_to_dashboard():
-    js = (ROOT / "omlx/admin/static/js/dashboard.js").read_text()
+    js = (ROOT / "omlx_web/static/js/dashboard.js").read_text()
     template = (
-        ROOT / "omlx/admin/templates/dashboard/_bench_accuracy.html"
+        ROOT / "omlx_web/templates/dashboard/_bench_accuracy.html"
     ).read_text()
 
     assert "!r.external && r.truncated_count > 0" in template
@@ -148,7 +148,7 @@ def test_local_truncation_exports():
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const catalog = JSON.parse(fs.readFileSync('omlx/admin/i18n/en.json', 'utf8'));
+const catalog = JSON.parse(fs.readFileSync('omlx_web/i18n/en.json', 'utf8'));
 let download;
 const context = {
     window: {t: key => catalog[key] ?? key},
@@ -158,7 +158,7 @@ const context = {
     URL: {createObjectURL: blob => {download = blob; return 'blob:test';},
           revokeObjectURL() {}},
 };
-const source = fs.readFileSync('omlx/admin/static/js/dashboard.js', 'utf8');
+const source = fs.readFileSync('omlx_web/static/js/dashboard.js', 'utf8');
 const state = vm.runInNewContext(source + '\n dashboard;', context)();
 const summary = 'Hit token limit: 2/5 (1 of them scored correct) · '
     + 'Accuracy on finished answers: 66.7% (n = 3)';
@@ -213,9 +213,9 @@ const summary = 'Hit token limit: 2/5 (1 of them scored correct) · '
 
 
 def test_accuracy_extra_body_is_wired_through_dashboard():
-    js = (ROOT / "omlx/admin/static/js/dashboard.js").read_text()
+    js = (ROOT / "omlx_web/static/js/dashboard.js").read_text()
     template = (
-        ROOT / "omlx/admin/templates/dashboard/_bench_accuracy.html"
+        ROOT / "omlx_web/templates/dashboard/_bench_accuracy.html"
     ).read_text()
 
     assert "accExternalExtraBody: ''" in js
@@ -248,7 +248,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const context = {window: {t: key => key}, localStorage: {getItem: () => null}, document: {}};
-const source = fs.readFileSync('omlx/admin/static/js/dashboard.js', 'utf8');
+const source = fs.readFileSync('omlx_web/static/js/dashboard.js', 'utf8');
 const state = vm.runInNewContext(source + '\n dashboard;', context)();
 const selected = () => Object.keys(state.accBenchmarks).filter(k => state.accBenchmarks[k]);
 

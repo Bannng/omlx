@@ -3,12 +3,12 @@
 import json
 from pathlib import Path
 
-from omlx.admin import webui
+from omlx_web import routes as webui
 
 
 def _chat_template() -> str:
     root = Path(__file__).resolve().parents[1]
-    return (root / "omlx/admin/templates/chat.html").read_text()
+    return (root / "omlx_web/templates/chat.html").read_text()
 
 
 def test_locale_loader_uses_english_fallback_for_missing_keys(tmp_path, monkeypatch):

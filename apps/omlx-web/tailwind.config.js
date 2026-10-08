@@ -1,8 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./templates/**/*.html",
-    "./static/js/**/*.js",
+    "./omlx_web/templates/**/*.html",
+    "./omlx_web/static/js/**/*.js",
   ],
   safelist: [
     "sm:grid-cols-2",  // dynamic :class in _modal_model_settings.html

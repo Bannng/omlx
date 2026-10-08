@@ -6,7 +6,7 @@ from pathlib import Path
 
 def _bundled_presets() -> dict[str, dict]:
     root = Path(__file__).resolve().parents[1]
-    bundle = json.loads((root / "omlx/admin/static/omlx_preset.json").read_text())
+    bundle = json.loads((root / "omlx_web/static/omlx_preset.json").read_text())
     presets = bundle["presets"]
     assert len({preset["name"] for preset in presets}) == len(presets)
     return {preset["name"]: preset for preset in presets}

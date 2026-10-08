@@ -26,7 +26,7 @@ GDN_I18N_KEYS = {
 
 def test_settings_template_exposes_gdn_storage_policy_and_codecs():
     template = (
-        ROOT / "omlx/admin/templates/dashboard/_settings.html"
+        ROOT / "omlx_web/templates/dashboard/_settings.html"
     ).read_text()
 
     advanced_start = template.index("<!-- Advanced Settings")
@@ -44,7 +44,7 @@ def test_settings_template_exposes_gdn_storage_policy_and_codecs():
 
 
 def test_gdn_cache_policy_i18n_keys_exist_in_every_locale():
-    i18n_dir = ROOT / "omlx/admin/i18n"
+    i18n_dir = ROOT / "omlx_web/i18n"
 
     for locale_path in sorted(i18n_dir.glob("*.json")):
         translations = json.loads(locale_path.read_text())
@@ -53,7 +53,7 @@ def test_gdn_cache_policy_i18n_keys_exist_in_every_locale():
 
 
 def test_dashboard_posts_canonical_gdn_fields_only():
-    script = (ROOT / "omlx/admin/static/js/dashboard.js").read_text()
+    script = (ROOT / "omlx_web/static/js/dashboard.js").read_text()
     payload_start = script.index("async saveGlobalSettings()")
     payload_end = script.index("async saveModelSettings()", payload_start)
     payload = script[payload_start:payload_end]

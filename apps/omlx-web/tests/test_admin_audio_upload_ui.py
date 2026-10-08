@@ -2,8 +2,8 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SETTINGS_TEMPLATE = ROOT / "omlx/admin/templates/dashboard/_settings.html"
-DASHBOARD_JS = ROOT / "omlx/admin/static/js/dashboard.js"
+SETTINGS_TEMPLATE = ROOT / "omlx_web/templates/dashboard/_settings.html"
+DASHBOARD_JS = ROOT / "omlx_web/static/js/dashboard.js"
 
 AUDIO_UPLOAD_I18N_KEYS = {
     "settings.advanced.uploads",
@@ -36,7 +36,7 @@ def test_dashboard_defaults_and_posts_audio_upload_limit():
 
 
 def test_audio_upload_i18n_keys_exist_in_every_locale():
-    i18n_dir = ROOT / "omlx/admin/i18n"
+    i18n_dir = ROOT / "omlx_web/i18n"
 
     for locale_path in sorted(i18n_dir.glob("*.json")):
         translations = json.loads(locale_path.read_text())

@@ -1,9 +1,10 @@
-// Run with: node --test tests/usage_history_ui.test.cjs
+// Run with: node --test apps/omlx-web/tests/usage_history_ui.test.cjs
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const path = require('node:path');
 const vm = require('node:vm');
-const source = fs.readFileSync('omlx/admin/static/js/usage.js', 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'omlx_web/static/js/usage.js'), 'utf8');
 
 function component(fetch, lang = 'en') {
     const context = vm.createContext({fetch, AbortController, URLSearchParams, Intl,

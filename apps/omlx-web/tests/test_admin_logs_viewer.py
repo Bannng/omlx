@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Record view of the admin Logs tab (omlx/admin/static/js/logs.js)."""
+"""Record view of the admin Logs tab (omlx_web/static/js/logs.js)."""
 
 import json
 import shutil
@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-LOGS_JS = ROOT / "omlx/admin/static/js/logs.js"
+LOGS_JS = ROOT / "omlx_web/static/js/logs.js"
 
 
 def _run(script: str):

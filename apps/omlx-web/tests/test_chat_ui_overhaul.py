@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CHAT_TEMPLATE = ROOT / "omlx/admin/templates/chat.html"
-I18N_DIR = ROOT / "omlx/admin/i18n"
-TAILWIND_CSS = ROOT / "omlx/admin/static/css/tailwind.css"
+CHAT_TEMPLATE = ROOT / "omlx_web/templates/chat.html"
+I18N_DIR = ROOT / "omlx_web/i18n"
+TAILWIND_CSS = ROOT / "omlx_web/static/css/tailwind.css"
 
 NEW_I18N_KEYS = {
     "chat.clear_search",
