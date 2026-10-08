@@ -11,6 +11,8 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
 
+from omlx.settings import SubKeyEntry
+
 # Note: These tests need a mock server setup since the actual server requires models
 
 
@@ -678,6 +680,28 @@ class TestUnauthenticatedInference:
         server, _ = configured_server
         response = TestClient(server.app).request(method, path)
         assert response.status_code == 401
+
+    def test_admin_api_accepts_the_main_key_as_bearer(self, configured_server):
+        server, _ = configured_server
+        response = TestClient(server.app).get(
+            "/admin/api/global-settings",
+            headers={"Authorization": "Bearer management-key"},
+        )
+        assert response.status_code == 200
+
+    @pytest.mark.parametrize("token", ["sub-key-1234", "wrong-key"])
+    def test_admin_api_rejects_other_bearer_keys(
+        self, configured_server, token, caplog
+    ):
+        server, settings = configured_server
+        settings.auth.sub_keys = [SubKeyEntry(key="sub-key-1234", name="sub")]
+        response = TestClient(server.app, follow_redirects=False).get(
+            "/admin/api/global-settings",
+            headers={"Authorization": f"Bearer {token}", "Accept": "text/html"},
+        )
+        # A rejected key gets 401 even from a browser, never the login redirect.
+        assert response.status_code == 401
+        assert "Rejected admin API key" in caplog.text
 
     def test_tool_routes_execute_without_key(self, configured_server, monkeypatch):
         from types import SimpleNamespace

@@ -6,6 +6,7 @@ and API key verification for admin panel access.
 """
 
 import hashlib
+import logging
 import os
 import secrets
 from typing import Optional
@@ -13,6 +14,8 @@ from typing import Optional
 from fastapi import HTTPException, Request
 from fastapi.responses import RedirectResponse
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+
+logger = logging.getLogger(__name__)
 
 # Session configuration
 SESSION_COOKIE_NAME = "omlx_admin_session"
@@ -268,11 +271,20 @@ def verify_session(request: Request) -> bool:
     return verify_session_token(token)
 
 
+def _bearer_token(request: Request) -> Optional[str]:
+    """Return the Bearer token from the Authorization header, if any."""
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    if scheme.lower() != "bearer":
+        return None
+    return token.strip()
+
+
 async def require_admin(request: Request) -> bool:
     """FastAPI dependency to require admin authentication.
 
     This dependency can be used in route definitions to protect
-    admin-only endpoints. It checks for a valid session cookie.
+    admin-only endpoints. It accepts a valid session cookie or the main
+    API key as a Bearer token.
 
     Args:
         request: The FastAPI request object (injected by FastAPI).
@@ -304,17 +316,32 @@ async def require_admin(request: Request) -> bool:
             if is_loopback_bind(active_host):
                 return True
 
-    if not verify_session(request):
-        # Browser requests (Accept: text/html) get redirected to login page
-        accept = request.headers.get("accept", "")
-        if "text/html" in accept and _web_ui_enabled:
-            raise _RedirectToLogin()
+    if verify_session(request):
+        return True
+
+    token = _bearer_token(request)
+    if token is not None:
+        gs = _get_global_settings() if _get_global_settings is not None else None
+        main_key = gs.auth.api_key if gs is not None else None
+        # Main key only: sub keys are for the inference API.
+        if main_key and verify_api_key(token, main_key):
+            return True
+        logger.warning("Rejected admin API key (fp=%s)", fingerprint_key(token))
         raise HTTPException(
             status_code=401,
-            detail="Admin authentication required",
-            headers={"WWW-Authenticate": "Cookie"},
+            detail="Invalid API key",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    return True
+
+    # Browser requests (Accept: text/html) get redirected to login page
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept and _web_ui_enabled:
+        raise _RedirectToLogin()
+    raise HTTPException(
+        status_code=401,
+        detail="Admin authentication required",
+        headers={"WWW-Authenticate": "Cookie"},
+    )
 
 
 class _RedirectToLogin(Exception):
