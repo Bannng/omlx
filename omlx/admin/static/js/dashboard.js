@@ -121,6 +121,30 @@
     };
     const ACC_PRESET_NAMES = ['quick', 'standard', 'full'];
 
+    // Chinese counts in ten-thousands: 万/亿/万亿 (zh) and 萬/億/兆 (zh-TW), the
+    // exact grouped figure below 10,000. Returns null for every other language.
+    function chineseCount(value) {
+        const lang = typeof document !== 'undefined' ? document.documentElement?.lang : '';
+        if (lang !== 'zh' && lang !== 'zh-TW') return null;
+        const number = Number(value);
+        if (!Number.isFinite(number)) return null;
+        const units = lang === 'zh-TW' ? ['萬', '億', '兆'] : ['万', '亿', '万亿'];
+        const scales = [1e4, 1e8, 1e12];
+        const magnitude = Math.abs(number);
+        let step = scales.length - 1;
+        while (step >= 0 && magnitude < scales[step]) step -= 1;
+        if (step < 0) return Math.round(number).toLocaleString(lang);
+        let mantissa = (magnitude / scales[step]).toFixed(1);
+        // 10,000万 is 1亿: the unit follows the printed mantissa.
+        if (Number(mantissa) >= 10000 && step < scales.length - 1) {
+            step += 1;
+            mantissa = (magnitude / scales[step]).toFixed(1);
+        }
+        const [whole, fraction] = mantissa.replace(/\.0$/, '').split('.');
+        const text = Number(whole).toLocaleString(lang) + (fraction ? '.' + fraction : '');
+        return (number < 0 ? '-' : '') + text + units[step];
+    }
+
     function dashboard() {
         // GridStack instance and helpers stay outside the reactive Alpine state.
         let dashGrid = null;
@@ -4187,6 +4211,8 @@
             },
 
             formatNumber(num) {
+                const chinese = chineseCount(num);
+                if (chinese !== null) return chinese;
                 if (num >= 1000000000) return (num / 1000000000).toFixed(1) + 'B';
                 if (num >= 10000000) return (num / 1000000).toFixed(1) + 'M';
                 return num.toLocaleString();
@@ -4243,6 +4269,8 @@
             },
 
             formatTokenCount(n) {
+                const chinese = chineseCount(n);
+                if (chinese !== null) return chinese;
                 if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
                 if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
                 return String(n);
@@ -7328,6 +7356,8 @@
             },
 
             formatDownloads(count) {
+                const chinese = chineseCount(count);
+                if (chinese !== null) return chinese;
                 if (count >= 1000000) return (count / 1000000).toFixed(1) + 'M';
                 if (count >= 1000) return (count / 1000).toFixed(1) + 'K';
                 return count.toString();
