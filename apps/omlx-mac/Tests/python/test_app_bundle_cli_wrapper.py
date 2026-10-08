@@ -7,7 +7,9 @@ from pathlib import Path
 
 
 def _extract_wrapper_script(variable: str) -> str:
-    build_script = Path("apps/omlx-mac/Scripts/build.sh").read_text()
+    build_script = (
+        Path(__file__).resolve().parents[2] / "Scripts" / "build.sh"
+    ).read_text()
     match = re.search(
         rf"cat > \"\${variable}\" <<'EOF'\n(?P<script>.*?)\nEOF",
         build_script,

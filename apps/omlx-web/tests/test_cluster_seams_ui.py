@@ -37,9 +37,7 @@ def _js_called_paths() -> set[str]:
         for match in _CLUSTER_URL.finditer(script.read_text()):
             path = match.group("path").split("?")[0]
             # Any interpolated segment stands for a path parameter.
-            path = re.sub(
-                r"\$\{[^{}]*(?:\([^)]*\))?[^{}]*\}", "{parameter}", path
-            )
+            path = re.sub(r"\$\{[^{}]*(?:\([^)]*\))?[^{}]*\}", "{parameter}", path)
             path = path.rstrip("/") if path not in ("", "/") else path
             called.add(_PREFIX + path)
     return called

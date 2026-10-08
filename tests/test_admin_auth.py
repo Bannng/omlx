@@ -37,6 +37,11 @@ def _restore_getter(original):
 class TestAutoLogin:
     """Tests for GET /admin/auto-login endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def _web_ui_served(self, monkeypatch):
+        # Headless servers answer 404 here; the redirects apply with the pages.
+        monkeypatch.setattr(admin_auth, "_web_ui_enabled", True)
+
     def test_auto_login_success_redirects_to_dashboard(self):
         """Valid API key should redirect to the specified path with session cookie."""
         mock_settings = _mock_global_settings(api_key="test-key")

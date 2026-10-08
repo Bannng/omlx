@@ -15,9 +15,7 @@ def test_fraction_choices_preserve_current_value(shared, current):
     node = shutil.which("node")
     if not node:
         pytest.skip("Node.js is required to exercise dashboard JavaScript")
-    source = (
-        Path(__file__).parents[1] / "omlx_web/static/js/dashboard.js"
-    ).read_text()
+    source = (Path(__file__).parents[1] / "omlx_web/static/js/dashboard.js").read_text()
     method = re.search(
         r"^            aneFractionOptions\([^\n]*\) \{.*?^            \},",
         source,
@@ -56,9 +54,7 @@ def test_shared_ane_web_state_preserves_backend_default_and_saved_fraction(
     node = shutil.which("node")
     if not node:
         pytest.skip("Node.js is required")
-    source = (
-        Path(__file__).parents[1] / "omlx_web/static/js/dashboard.js"
-    ).read_text()
+    source = (Path(__file__).parents[1] / "omlx_web/static/js/dashboard.js").read_text()
     method = re.search(
         r"^            buildModelSettingsState\([^\n]*\) \{.*?^            \},",
         source,

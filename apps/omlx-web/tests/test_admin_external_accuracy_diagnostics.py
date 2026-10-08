@@ -14,9 +14,7 @@ I18N_DIR = ROOT / "omlx_web" / "i18n"
 
 def test_external_accuracy_diagnostics_are_wired_to_dashboard():
     js = (ROOT / "omlx_web/static/js/dashboard.js").read_text()
-    template = (
-        ROOT / "omlx_web/templates/dashboard/_bench_accuracy.html"
-    ).read_text()
+    template = (ROOT / "omlx_web/templates/dashboard/_bench_accuracy.html").read_text()
 
     assert "valid_response_count" in js
     assert "valid_answer_accuracy" in js
@@ -117,9 +115,7 @@ const state = vm.runInNewContext(source + '\n dashboard;', context)();
 
 def test_local_truncation_is_wired_to_dashboard():
     js = (ROOT / "omlx_web/static/js/dashboard.js").read_text()
-    template = (
-        ROOT / "omlx_web/templates/dashboard/_bench_accuracy.html"
-    ).read_text()
+    template = (ROOT / "omlx_web/templates/dashboard/_bench_accuracy.html").read_text()
 
     assert "!r.external && r.truncated_count > 0" in template
     assert "r.finished_accuracy" in template
@@ -214,9 +210,7 @@ const summary = 'Hit token limit: 2/5 (1 of them scored correct) · '
 
 def test_accuracy_extra_body_is_wired_through_dashboard():
     js = (ROOT / "omlx_web/static/js/dashboard.js").read_text()
-    template = (
-        ROOT / "omlx_web/templates/dashboard/_bench_accuracy.html"
-    ).read_text()
+    template = (ROOT / "omlx_web/templates/dashboard/_bench_accuracy.html").read_text()
 
     assert "accExternalExtraBody: ''" in js
     assert "parseAccuracyExtraBody()" in js

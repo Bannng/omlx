@@ -78,9 +78,7 @@ def test_dashboard_renders_usage_history_switch_and_disabled_notice(client):
     assert "Record usage history" in html
     assert "Usage history is off. Turn it on in Settings" in html
     assert "setSettingsTab('global')" in html
-    javascript = (ROOT / "omlx_web/static/js/dashboard.js").read_text(
-        encoding="utf-8"
-    )
+    javascript = (ROOT / "omlx_web/static/js/dashboard.js").read_text(encoding="utf-8")
     assert "usage: { usage_history: true }" in javascript
     assert "usage_history: this.globalSettings.usage.usage_history" in javascript
 

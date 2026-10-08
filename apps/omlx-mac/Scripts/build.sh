@@ -605,6 +605,8 @@ RSYNC_EXCLUDES=(
     --exclude='tests'
     --exclude='.git'
     --exclude='custom_kernels/*/csrc'
+    # Tailwind CLI left over from before the web UI moved to apps/omlx-web.
+    --exclude='admin/tailwindcss-*'
 )
 if [ "$WITH_CUSTOM_KERNEL" != "1" ]; then
     RSYNC_EXCLUDES+=(
@@ -617,6 +619,18 @@ rsync -a \
     "${RSYNC_EXCLUDES[@]}" \
     "$REPO_ROOT/omlx/" "$RESOURCES_DIR/omlx/"
 ok "  + omlx package"
+
+log "Copying omlx_web package from source tree…"
+rm -rf "$RESOURCES_DIR/omlx_web"
+mkdir -p "$RESOURCES_DIR/omlx_web"
+rsync -a \
+    --exclude='__pycache__' \
+    --exclude='*.pyc' \
+    "$REPO_ROOT/apps/omlx-web/omlx_web/" "$RESOURCES_DIR/omlx_web/"
+# The server runs headless without it, so a missing copy would not fail later.
+[ -f "$RESOURCES_DIR/omlx_web/templates/dashboard.html" ] \
+    || die "omlx_web templates are missing from the app bundle."
+ok "  + omlx_web package"
 
 if [ "$WITH_CUSTOM_KERNEL" = "1" ]; then
     _validate_packaged_custom_kernel_extensions \

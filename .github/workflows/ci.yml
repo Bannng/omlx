@@ -31,6 +31,10 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
+      # The server must build, install, and pass its tests without the apps.
+      - name: Remove apps
+        run: rm -rf apps
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
@@ -49,6 +53,25 @@ jobs:
           -n 3 --dist loadgroup
           --durations=50 --junitxml=test-results.xml
 
+      - name: Smoke test the API-only server
+        run: |
+          mkdir -p "$RUNNER_TEMP/models"
+          OMLX_BASE_PATH="$RUNNER_TEMP/omlx" omlx serve \
+            --model-dir "$RUNNER_TEMP/models" --port 18765 --api-key ci-smoke-key \
+            > "$RUNNER_TEMP/serve.log" 2>&1 &
+          server_pid=$!
+          for _ in $(seq 1 60); do
+            curl -sf http://127.0.0.1:18765/health > /dev/null && break
+            sleep 1
+          done
+          code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+          test "$(code http://127.0.0.1:18765/health)" = 200
+          test "$(code -H 'Authorization: Bearer ci-smoke-key' http://127.0.0.1:18765/v1/models)" = 200
+          test "$(code http://127.0.0.1:18765/admin)" = 404
+          test "$(code -H 'Accept: text/html' http://127.0.0.1:18765/admin/api/global-settings)" = 401
+          grep -q "omlx_web is not installed" "$RUNNER_TEMP/serve.log"
+          kill "$server_pid"
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -56,3 +79,33 @@ jobs:
           name: test-results-py${{ matrix.python-version }}
           path: test-results.xml
           retention-days: 14
+
+  apps-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[mcp]"
+          python -m pip install pytest pytest-asyncio pytest-xdist
+
+      - name: Run web and macOS app tests
+        run: >-
+          python -m pytest apps/omlx-web/tests apps/omlx-mac/Tests/python
+          -m "not slow and not integration" -n 3
+
+      - name: Run web UI script tests
+        run: >-
+          node --test
+          apps/omlx-web/tests/deepseek_v41_offload_ui.test.cjs
+          apps/omlx-web/tests/moe_expert_offload_ui.test.cjs
+          apps/omlx-web/tests/qwen_oq_a8_ui.test.cjs
+          apps/omlx-web/tests/usage_history_ui.test.cjs

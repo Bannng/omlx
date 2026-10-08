@@ -8,11 +8,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-CHECKER = (
-    Path(__file__).resolve().parents[1]
-    / "apps/omlx-mac/Scripts/check_custom_kernel_python_abi.py"
-)
-BUILD_SCRIPT = Path(__file__).resolve().parents[1] / "apps/omlx-mac/Scripts/build.sh"
+SCRIPTS = Path(__file__).resolve().parents[2] / "Scripts"
+CHECKER = SCRIPTS / "check_custom_kernel_python_abi.py"
+BUILD_SCRIPT = SCRIPTS / "build.sh"
 
 
 def _write_fake_python(path: Path, *, descriptor: str | None = None) -> None:

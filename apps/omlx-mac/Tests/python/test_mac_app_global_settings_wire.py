@@ -7,8 +7,7 @@ from pathlib import Path
 from omlx.admin.routes import GlobalSettingsRequest
 
 PATCH_DTO = (
-    Path(__file__).resolve().parents[1]
-    / "apps/omlx-mac/Sources/Net/DTO/GlobalSettingsDTO.swift"
+    Path(__file__).resolve().parents[2] / "Sources/Net/DTO/GlobalSettingsDTO.swift"
 )
 PATCH_MEMBER = re.compile(r"^\s+var ([A-Za-z][A-Za-z0-9]*): .* = nil$", re.M)
 

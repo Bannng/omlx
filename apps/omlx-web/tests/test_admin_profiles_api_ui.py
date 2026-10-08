@@ -11,9 +11,7 @@ def test_dashboard_profile_ui_round_trips_expose_as_model_flag():
     html = (
         root / "omlx_web/templates/dashboard/_modal_model_settings.html"
     ).read_text()
-    settings_html = (
-        root / "omlx_web/templates/dashboard/_settings.html"
-    ).read_text()
+    settings_html = (root / "omlx_web/templates/dashboard/_settings.html").read_text()
     dashboard_html = (root / "omlx_web/templates/dashboard.html").read_text()
     en = (root / "omlx_web/i18n/en.json").read_text()
 
