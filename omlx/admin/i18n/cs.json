@@ -117,6 +117,7 @@
   "status.stat.total_tokens": "Tokeny prefillu celkem",
   "status.stat.cached_tokens": "Cachované tokeny",
   "status.stat.cache_efficiency": "Efektivita cache",
+  "status.kpi.requests": "Requests",
   "status.speed.section_label": "Průměrná rychlost",
   "status.speed.prompt_processing": "Zpracování promptu",
   "status.speed.prompt_processing_note": "(mimo cachované)",

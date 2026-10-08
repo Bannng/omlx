@@ -10,8 +10,9 @@
 ] %}
             <div x-show="mainTab === 'status'" x-cloak role="tabpanel" id="panel-status" aria-labelledby="tab-status">
                 <div class="animate-fade-in-up">
-                    <!-- Server status header: identity, uptime and the two lifecycle actions -->
-                    <div class="bg-white rounded-2xl border border-neutral-200 mb-6">
+                    <!-- Server status header: identity, uptime and the two lifecycle actions.
+                         mx-3 matches the 12px GridStack item margin of the blocks below. -->
+                    <div class="bg-white rounded-2xl border border-neutral-200 mb-6 mx-3">
                         <div class="flex flex-wrap items-center justify-between gap-4 px-6 py-5">
                             <div class="flex items-center gap-3 min-w-0">
                                 <img x-show="activeTheme !== 'dark'" src="/admin/static/navbar-logo-light.svg" alt="" aria-hidden="true" class="w-9 h-9">

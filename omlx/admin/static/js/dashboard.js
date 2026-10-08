@@ -4248,12 +4248,6 @@
                 return agg;
             },
 
-            getStatFontClass(value) {
-                if (value >= 1000000000) return 'text-2xl';
-                if (value >= 1000000) return 'text-3xl';
-                return 'text-5xl';
-            },
-
             formatSizeBytes(bytes) {
                 if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
                 if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(0) + ' MB';
