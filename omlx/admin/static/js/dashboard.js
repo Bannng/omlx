@@ -703,6 +703,7 @@
             // once per endpoint (thinking models need a larger budget).
             accExternalMaxTokens: localStorage.getItem('omlx_acc_external_max_tokens') || '',
             accRunning: false,
+            _managerStatusTimer: null,
             benchConfirm: null,      // 'throughput' | 'accuracy' | 'context' while asking
             accCurrentModel: '',
             accCurrentBenchId: null,
@@ -810,7 +811,8 @@
                     this.stopLogRefresh();
                 }
                 if (value === 'models') {
-                    const loads = [this.loadHFModels(), this.loadHFTasks(), this.loadOQTasks()];
+                    const loads = [this.loadModels(), this.loadHFModels(), this.loadHFTasks(), this.loadOQTasks()];
+                    this.startManagerStatusRefresh();
                     if (this.modelsTab === 'downloader' && !this.hfRecommendedLoaded) {
                         loads.push(this.loadRecommendedModels());
                     }
@@ -834,6 +836,7 @@
                     this.stopHFRefresh();
                     this.stopMSRefresh();
                     this.stopOQRefresh();
+                    this.stopManagerStatusRefresh();
                 }
                 if (value === 'bench') {
                     if (!this.benchDeviceInfo) await this.loadBenchDeviceInfo();
@@ -6460,6 +6463,38 @@
 
             // Cross-reference the richer /api/models entry (has model_type,
             // settings) for a manager row keyed by its model name.
+            // Loaded state of a manager row. Requests can load and unload models
+            // on their own, so the list refreshes while the Models tab is open.
+            managerModelStatus(name) {
+                const info = this.managerModelInfo(name);
+                if (!info) return '';
+                if (info.is_loading) return 'loading';
+                return info.loaded ? 'loaded' : 'unloaded';
+            },
+
+            managerModelMemory(name) {
+                const info = this.managerModelInfo(name) || {};
+                const measured = !info.is_loading && info.actual_size ? info.actual_size_formatted : '';
+                return { value: measured ? '~' + measured : (info.estimated_size_formatted || '-'),
+                         estimate: measured ? info.estimated_size_formatted || '' : '' };
+            },
+
+            startManagerStatusRefresh() {
+                this.stopManagerStatusRefresh();
+                this._managerStatusTimer = setInterval(() => {
+                    if (this.mainTab === 'models' && this.modelsTab === 'manager' && !document.hidden) {
+                        this.loadModels();
+                    }
+                }, 5000);
+            },
+
+            stopManagerStatusRefresh() {
+                if (this._managerStatusTimer) {
+                    clearInterval(this._managerStatusTimer);
+                    this._managerStatusTimer = null;
+                }
+            },
+
             managerModelInfo(name) {
                 return this.models.find(m => m.id === name);
             },
