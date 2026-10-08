@@ -89,7 +89,7 @@
 
                             <!-- Start button -->
                             <div class="flex justify-end">
-                                <button @click="startContextBenchmark()"
+                                <button @click="requestBenchConfirm('context')"
                                         :disabled="ctxBenchRunning || !ctxBenchModelId"
                                         class="px-5 py-2.5 bg-neutral-900 text-white text-sm font-medium rounded-xl hover:bg-neutral-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
                                     <i data-lucide="play" class="w-4 h-4"></i>

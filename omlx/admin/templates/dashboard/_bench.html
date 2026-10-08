@@ -219,7 +219,7 @@
                             <!-- Run / Cancel Button -->
                             <div class="flex items-center gap-3 pt-2">
                                 <button x-show="!benchRunning"
-                                        @click="startBenchmark()"
+                                        @click="requestBenchConfirm('throughput')"
                                         :disabled="(benchExternalEnabled ? !externalConfigValid() : !benchModelId) || Object.values(benchPromptLengths).every(v => !v) || benchOtherActive !== null"
                                         :title="benchOtherActive ? window.t('bench.other_active.already_running') : ''"
                                         class="px-6 py-2.5 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
@@ -538,6 +538,36 @@
                      x-text="benchTip?.text"
                      class="bench-tip-fixed"></div>
                 </div>
+
+                <!-- Benchmark run confirmation (every bench unloads the resident models) -->
+                <dialog x-effect="benchConfirm ? $el.showModal() : $el.close()" x-cloak
+                        class="dashboard-dialog fixed inset-0 z-[60] overflow-y-auto"
+                        role="alertdialog" aria-modal="true"
+                        aria-labelledby="bench-confirm-title" aria-describedby="bench-confirm-body"
+                        @keydown.tab="trapDialogFocus($event)"
+                        @cancel.prevent="benchConfirm = null">
+                    <div class="fixed inset-0 bg-black/50" @click="benchConfirm = null"></div>
+                    <div class="flex min-h-full items-center justify-center p-4">
+                        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 text-center" @click.stop>
+                            <div class="mx-auto mb-4 w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
+                                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                            </div>
+                            <h4 id="bench-confirm-title" class="text-lg font-bold tracking-tight text-neutral-900">{{ t('bench.confirm.title') }}</h4>
+                            <p id="bench-confirm-body" class="text-sm text-neutral-600 mt-2"
+                               x-text="benchConfirm ? window.t('bench.confirm.body.' + benchConfirm) : ''"></p>
+                            <div class="flex justify-center gap-3 mt-6">
+                                <button type="button" @click="benchConfirm = null" autofocus
+                                        class="px-5 py-2.5 text-sm font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-full transition-all">
+                                    {{ t('bench.progress.cancel') }}
+                                </button>
+                                <button type="button" @click="confirmBenchRun()"
+                                        class="px-6 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-full hover:bg-red-700 transition-all">
+                                    {{ t('bench.confirm.action') }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </dialog>
 
                 <!-- Accuracy tab -->
                 {% include "dashboard/_bench_accuracy.html" %}
