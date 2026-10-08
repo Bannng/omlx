@@ -681,8 +681,14 @@ class TestUnauthenticatedInference:
         response = TestClient(server.app).request(method, path)
         assert response.status_code == 401
 
-    def test_admin_api_accepts_the_main_key_as_bearer(self, configured_server):
-        server, _ = configured_server
+    def test_admin_api_accepts_the_main_key_as_bearer(
+        self, configured_server, monkeypatch
+    ):
+        from omlx.admin import routes as admin_routes
+
+        server, settings = configured_server
+        # Other suites can leave a stale settings getter on the routes module.
+        monkeypatch.setattr(admin_routes, "_get_global_settings", lambda: settings)
         response = TestClient(server.app).get(
             "/admin/api/global-settings",
             headers={"Authorization": "Bearer management-key"},
