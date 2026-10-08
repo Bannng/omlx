@@ -6773,15 +6773,13 @@ class Scheduler:
     ) -> list[_PrefillChunkPlan]:
         """Plan *state*'s next chunk and the later prefills sharing its forward.
 
-        Without decode contention every row runs exactly the chunk it would run
-        alone, so packing never moves a chunk boundary: later prefills (FCFS)
-        join while their whole chunk fits in the head's step size, and a pack
-        is never longer than one full single-request chunk.
-        While decode waits, the rows share one contended chunk budget, so a
-        pack stalls decode no longer than a single-request chunk. That budget
-        goes to the rows closest to completion first; the head always keeps
-        one packable grid step so it cannot starve.
-        A chunk shorter than the model's packable minimum runs alone.
+        Without decode contention every row runs the chunk it would run alone,
+        and later prefills (FCFS) join only while their whole chunk fits in the
+        head's step, so chunk boundaries never move.
+        While decode waits, the rows share one contended chunk budget, shortest
+        remainder first. The head keeps one packable grid step, and rows that
+        finish do not wait for a longer head chunk.
+        Chunks shorter than the packable minimum run alone.
         """
         _mtp_priming.activate_request(self.model, state.request.request_id)
         if state.tokens_remaining.shape[1] == 0:
@@ -7090,11 +7088,9 @@ class Scheduler:
                         companion, plan.state, scheduled, None
                     )
             if packed or contended:
-                # One forward per step after a pack or a contended chunk: the
-                # oldest prefill stays the head until it finishes, and finished
-                # rows decode before the next pack. A lone head that ran without
-                # contention lets later prefills advance, as unpacked ones do,
-                # even when its finished row now decodes.
+                # One forward per step after a pack or a contended chunk, so
+                # finished rows decode first. An uncontended lone head lets
+                # later prefills advance, as unpacked ones do.
                 still_prefilling.extend(pending_prefills[index + 1 :])
                 break
 

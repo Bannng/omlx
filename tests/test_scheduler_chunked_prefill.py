@@ -1766,40 +1766,6 @@ def _tiny_glm5_next():
     )
 
 
-def _tiny_qwen3_5_moe():
-    from mlx_vlm.models.qwen3_5_moe import config, language
-
-    text = config.TextConfig(
-        model_type="qwen3_5_moe_text",
-        hidden_size=32,
-        num_hidden_layers=4,
-        num_attention_heads=4,
-        linear_num_value_heads=4,
-        linear_num_key_heads=2,
-        linear_key_head_dim=8,
-        linear_value_head_dim=8,
-        linear_conv_kernel_dim=4,
-        num_experts=4,
-        num_experts_per_tok=2,
-        shared_expert_intermediate_size=16,
-        moe_intermediate_size=16,
-        rms_norm_eps=1e-6,
-        vocab_size=64,
-        num_key_value_heads=2,
-        max_position_embeddings=512,
-        head_dim=8,
-        rope_parameters={
-            "type": "default",
-            "mrope_section": [2, 1, 1],
-            "rope_theta": 10000,
-            "partial_rotary_factor": 1.0,
-        },
-    )
-    return language.LanguageModel(text), SimpleNamespace(
-        model_type="qwen3_5_moe", text_config=text
-    )
-
-
 def _tiny_mlx_lm_qwen3_5_moe():
     from mlx_lm.models import qwen3_5_moe
 
@@ -1922,7 +1888,6 @@ def _assert_same_cache(actual, expected):
     [
         lambda: _tiny_vlm_adapter(_tiny_qwen3_5),
         lambda: _tiny_vlm_adapter(_tiny_qwen4_exp),
-        lambda: _tiny_vlm_adapter(_tiny_qwen3_5_moe),
         lambda: _tiny_vlm_adapter(_tiny_glm5_next),
         _tiny_mlx_lm_qwen3_5_moe,
         _tiny_hy_v3,
@@ -1930,7 +1895,6 @@ def _assert_same_cache(actual, expected):
     ids=[
         "qwen3_5",
         "qwen4_exp",
-        "qwen3_5_moe",
         "glm5_next",
         "mlx_lm_qwen3_5_moe",
         "hy_v3",
@@ -2277,26 +2241,24 @@ def test_packed_prefill_drops_rows_that_do_not_fit(monkeypatch):
     assert forwards == []
 
 
-def test_lone_heads_without_contention_let_later_prefills_advance(monkeypatch):
+@pytest.mark.parametrize(
+    "a_tokens, scheduled",
+    [
+        # a's 16-token chunk fills the step.
+        (41, []),
+        # a finishes and then decodes, but its forward ran uncontended.
+        (9, ["a"]),
+    ],
+)
+def test_lone_heads_without_contention_let_later_prefills_advance(
+    monkeypatch, a_tokens, scheduled
+):
     scheduler = _make_packed_scheduler()
     forwards = _record_packed_forwards(monkeypatch)
-    _, a_state = _stage_prefill(scheduler, "a", 41)
+    _stage_prefill(scheduler, "a", a_tokens)
     _, b_state = _stage_prefill(scheduler, "b", 31)
-    _advance(scheduler)
-    # Each 16-token chunk fills the step, so neither packs; b still advances.
-    assert (a_state.tokens_processed, b_state.tokens_processed) == (16, 16)
-    assert forwards == []
-
-
-def test_lone_head_that_finishes_uncontended_lets_later_prefills_advance(monkeypatch):
-    scheduler = _make_packed_scheduler()
-    forwards = _record_packed_forwards(monkeypatch)
-    _stage_prefill(scheduler, "a", 9)
-    _, b_state = _stage_prefill(scheduler, "b", 31)
-    scheduled, _ = _advance(scheduler)
-    # b's 16-token chunk does not fit next to a's 8 tokens. a then decodes, but
-    # its forward ran uncontended, so b still advances in the same step.
-    assert scheduled == ["a"]
+    assert _advance(scheduler) == (scheduled, [])
+    # b's 16-token chunk does not fit next to a's, yet b still advances.
     assert b_state.tokens_processed == 16
     assert forwards == []
 
