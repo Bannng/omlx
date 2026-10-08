@@ -72,7 +72,7 @@ function usageHistory() {
             return `height: ${total > 0 ? Math.max(4, Math.round(ratio * 100)) : 0}%;`;
         },
         shade(tokens) {
-            return tokens ? `rgba(22, 163, 74, ${0.2 + 0.8 * Math.sqrt(tokens / this.peak)})` : 'rgba(128, 128, 128, 0.12)';
+            return tokens ? `rgb(var(--palette-green-600) / ${0.2 + 0.8 * Math.sqrt(tokens / this.peak)})` : 'rgb(var(--palette-mid-gray) / 0.12)';
         },
         number(value) { return new Intl.NumberFormat(usageLocale(), {notation: 'compact', maximumFractionDigits: 1}).format(value || 0); },
         speed(value) { return value == null ? '—' : value.toFixed(1); },

@@ -4356,11 +4356,11 @@
 
             get activeModelsPressureBarColor() {
                 const pct = this.activeModelsPressurePercent;
-                if (pct >= 90) return '#ef4444';
-                if (pct >= 80) return '#f97316';
-                if (pct >= 70) return '#f59e0b';
-                if (pct >= 60) return '#facc15';
-                return '#22c55e';
+                if (pct >= 90) return 'rgb(var(--palette-red-500))';
+                if (pct >= 80) return 'rgb(var(--palette-orange-500))';
+                if (pct >= 70) return 'rgb(var(--palette-amber-500))';
+                if (pct >= 60) return 'rgb(var(--palette-yellow-400))';
+                return 'rgb(var(--palette-green-500))';
             },
 
             get activeModelsPressureBarStyle() {
@@ -4368,7 +4368,7 @@
             },
 
             get activeModelsSoftMarkerStyle() {
-                return `left: ${this.activeModelsSoftPercent}%; width: 1px; background-color: rgba(64, 64, 64, 0.6);`;
+                return `left: ${this.activeModelsSoftPercent}%; width: 1px; background-color: rgb(var(--palette-neutral-700) / 0.6);`;
             },
 
             formatUptime(seconds) {
