@@ -4346,6 +4346,52 @@
                 return `left: ${this.activeModelsSoftPercent}%; width: 1px; background-color: rgba(64, 64, 64, 0.6);`;
             },
 
+            // Scaled to the machine's memory, so the room above the hard limit shows.
+            // With the guard off the server reports no limits (0); the bar then shows
+            // usage against the machine alone.
+            get memoryWatermark() {
+                const active = this.stats.active_models || {};
+                const pressure = active.memory_pressure || {};
+                const guarded = Boolean(pressure.enabled && pressure.hard_bytes > 0);
+                const hard = guarded ? pressure.hard_bytes : 0;
+                const soft = guarded ? (pressure.soft_bytes || 0) : 0;
+                const actual = guarded ? (pressure.current_bytes || 0) : (active.model_memory_used || 0);
+                const estimated = (active.models || []).reduce((sum, m) => sum + (m.estimated_size || 0), 0);
+                const total = Math.max(this.globalSettings.system?.total_memory_bytes || 0, hard);
+                const at = (bytes) => (total > 0 ? Math.min(100, (bytes / total) * 100) : 0);
+                return {
+                    visible: total > 0 && (guarded || actual > 0),
+                    hard, soft, actual, estimated, total,
+                    actualPercent: at(actual),
+                    estimatedPercent: at(estimated),
+                    softPercent: soft ? at(soft) : 0,
+                    hardPercent: hard ? at(hard) : 0,
+                };
+            },
+
+            formatUptime(seconds) {
+                if (seconds == null || !Number.isFinite(seconds)) return '';
+                const total = Math.floor(seconds);
+                const days = Math.floor(total / 86400);
+                const hours = Math.floor((total % 86400) / 3600);
+                const minutes = Math.floor((total % 3600) / 60);
+                if (days > 0) return `${days}d ${hours}h`;
+                if (hours > 0) return `${hours}h ${minutes}m`;
+                return `${minutes}m`;
+            },
+
+            async unloadAllModels() {
+                const loaded = (this.stats.active_models?.models || []).filter(m => !m.is_loading);
+                if (!loaded.length) return;
+                if (!window.confirm(window.t('status.header.unload_all_confirm').replace('{count}', String(loaded.length)))) {
+                    return;
+                }
+                for (const model of loaded) {
+                    await this.unloadModel(model.id);
+                }
+                await this.loadStats();
+            },
+
             activeModelsPressureLabel() {
                 const mp = this.stats.active_models?.memory_pressure;
                 if (!mp || !mp.enabled || !mp.hard_bytes) {

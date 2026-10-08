@@ -113,3 +113,43 @@ assert.equal(state.mainTab, 'status');
         [node, "-e", script], cwd=ROOT, capture_output=True, text=True
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_memory_watermark_with_and_without_the_guard():
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required for dashboard behavior tests")
+    script = r"""
+const fs = require('node:fs');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const source = fs.readFileSync('omlx/admin/static/js/dashboard.js', 'utf8');
+const context = {localStorage: {getItem: () => null}, window: {t: key => key}, document: {}};
+const state = vm.runInNewContext(source + '\n dashboard;', context)();
+const GB = 1024 ** 3;
+state.globalSettings.system.total_memory_bytes = 128 * GB;
+
+// Guard off: the server sends 0 for every limit.
+state.stats.active_models = {
+    models: [{id: 'm', estimated_size: 20 * GB}], model_memory_used: 18 * GB, model_memory_max: 0,
+    memory_pressure: {enabled: false, current_bytes: 0, soft_bytes: 0, hard_bytes: 0},
+};
+let wm = state.memoryWatermark;
+assert.equal(wm.visible, true);
+assert.equal(wm.hard, 0);
+assert.equal(wm.hardPercent, 0);
+assert.equal(Math.round(wm.actualPercent), 14);
+
+// Guard on: limits come from the enforcer, scaled to the machine.
+state.stats.active_models.memory_pressure = {
+    enabled: true, current_bytes: 64 * GB, soft_bytes: 80 * GB, hard_bytes: 96 * GB,
+};
+wm = state.memoryWatermark;
+assert.equal(wm.actualPercent, 50);
+assert.equal(wm.hardPercent, 75);
+assert.equal(wm.softPercent, 62.5);
+"""
+    result = subprocess.run(
+        [node, "-e", script], cwd=ROOT, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
