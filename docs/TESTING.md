@@ -1,3 +1,7 @@
+# Test layout
+
+Server tests live in `tests/` and must pass without `apps/`: CI deletes it before running them, then starts `omlx serve` to check the API-only fallback. Web UI tests live in `apps/omlx-web/tests/` and the macOS app's Python tests in `apps/omlx-mac/Tests/python/`. A plain `pytest` runs all three through `testpaths`. The standalone dashboard script tests are the `apps/omlx-web/tests/*.test.cjs` files except `network_auth_ui.test.cjs`, which `test_admin_network_auth_ui.py` runs with its input.
+
 # Qwen3-ASR audio quantization tests
 
 Run `python -m pytest -q tests/test_audio_stt.py -k Qwen3ASRAudioQuantization` to check Qwen3-ASR audio quantization through the STT loader. Small local checkpoints cover mixed 4-bit text and 8-bit audio weights and floating-point audio layers. No model download is required.
@@ -100,7 +104,7 @@ Run `python -m pytest -q tests/test_vlm_batch_kv_capacity.py` after changing `om
 
 # Cluster join recovery tests
 
-Run `python -m pytest -q tests/test_cluster_pairing_session.py tests/test_cluster_pairing.py tests/test_cluster_ui_integration.py tests/ui/test_cluster_v2_wizard.py` to check joining, cancellation, and approval. Session tests recreate a manager with the same base path to verify that the original code and cancellation proof survive a restart. They also cover offline cancellation, switching peers while cleanup is pending, rejected requests versus lost responses, and storage failures. Wizard tests check that delayed responses cannot restore a cancelled join and that pending cleanup leaves new pairing controls available.
+Run `python -m pytest -q tests/test_cluster_pairing_session.py tests/test_cluster_pairing.py tests/test_cluster_ui_integration.py apps/omlx-web/tests/ui/test_cluster_v2_wizard.py` to check joining, cancellation, and approval. Session tests recreate a manager with the same base path to verify that the original code and cancellation proof survive a restart. They also cover offline cancellation, switching peers while cleanup is pending, rejected requests versus lost responses, and storage failures. Wizard tests check that delayed responses cannot restore a cancelled join and that pending cleanup leaves new pairing controls available.
 
 For a two-Mac smoke test, start isolated servers with separate base paths. Request a join, restart only the joining server, then cancel and retry; the coordinator must remove the original pending request. Repeat with the coordinator offline: cancellation must return `state: idle` with `cleanup_pending: true`, and joining a different reachable Mac must work. Restore the coordinator and poll the join endpoint to verify cleanup. Keep existing approval/cancel race and token-ownership tests in the run; never relax the coordinator's token check to make a stale request disappear.
 
@@ -120,7 +124,7 @@ DeepSeek V4.1 Metal arithmetic and sparse-addressing checks: `python -m pytest t
 
 Packed attention rounding: `python -m pytest tests/test_deepseek_v41_attention_rounding.py -q`. An independent MLX oracle checks 64-key online maxima, FP32 denominators, BF16 PV probabilities, masking, sink placement, and growing or strided KV across the threadgroup capacity boundary. This does not execute the official CUDA kernels.
 
-Engram storage and prefetch lifecycle: `python -m pytest tests/test_deepseek_v41_offload.py -q`. Modal state, forced-toggle behavior, and save payload: `node --test tests/deepseek_v41_offload_ui.test.cjs`. Both use synthetic fixtures and require no checkpoint download.
+Engram storage and prefetch lifecycle: `python -m pytest tests/test_deepseek_v41_offload.py -q`. Modal state, forced-toggle behavior, and save payload: `node --test apps/omlx-web/tests/deepseek_v41_offload_ui.test.cjs`. Both use synthetic fixtures and require no checkpoint download.
 
 
 ### MoE expert residency
@@ -139,7 +143,7 @@ projections, exact force-dense dequantization, the affine Engram table spec, a
 convert round-trip against a direct load, the declared-format resolver, and
 offload eligibility. Run alongside `test_deepseek_v41_offload.py`,
 `test_moe_expert_offload.py`, and the engine-pool/model-settings suites.
-`node tests/moe_expert_offload_ui.test.cjs` checks the actual dashboard
+`node apps/omlx-web/tests/moe_expert_offload_ui.test.cjs` checks the actual dashboard
 save/reopen payload and speculative-decoding toggle exclusion.
 
 `tests/test_moe_expert_offload.py` also exercises Qwen4-Exp MoE routing with
@@ -151,17 +155,17 @@ PLE/Engram metadata after expert savings.
 
 # macOS port persistence tests
 
-Run the `AppConfigTests`, `ServerProcessIntegrationTests`, `ServerScreenVMStorageDiffTests`, `AppServicesPathTests`, and `MenubarControllerPortTests` targets with `xcodebuild test`. For process tests, set `TEST_RUNNER_OMLX_INTEGRATION=1`, `TEST_RUNNER_OMLX_PYTHON_OVERRIDE` to a Python interpreter with oMLX dependencies, `TEST_RUNNER_PYTHONPATH` to the repository root, and `TEST_RUNNER_OMLX_BASE_PATH` to a fresh temporary directory so the test host does not start the user's configured server. Leave `TEST_RUNNER_OMLX_DEV_SERVER_SCRIPT` unset to exercise the real Python API and CLI with empty model directories. Setting it to `apps/omlx-mac/Scripts/dev_server.py` instead runs the lightweight process fixture.
+Run the `AppConfigTests`, `ServerProcessIntegrationTests`, `ServerScreenVMStorageDiffTests`, `AppServicesPathTests`, and `MenubarControllerPortTests` targets with `xcodebuild test`. For process tests, set `TEST_RUNNER_OMLX_INTEGRATION=1`, `TEST_RUNNER_OMLX_PYTHON_OVERRIDE` to a Python interpreter with oMLX dependencies, `TEST_RUNNER_PYTHONPATH` to the repository root and `apps/omlx-web`, and `TEST_RUNNER_OMLX_BASE_PATH` to a fresh temporary directory so the test host does not start the user's configured server. Leave `TEST_RUNNER_OMLX_DEV_SERVER_SCRIPT` unset to exercise the real Python API and CLI with empty model directories. Setting it to `apps/omlx-mac/Scripts/dev_server.py` instead runs the lightweight process fixture.
 
 The port cases cover offline Apply, recovery from an occupied port, web API saves followed by manual and automatic restarts, native Apply while running, client endpoint synchronization, and persistence across subsequent starts. Each child uses a temporary settings directory and an OS-selected port, and teardown stops the children. Endpoint-only persistence also checks that unrelated settings and corrupt files are preserved.
 
 # Accuracy benchmark worker tests
 
-Run `python -m pytest -q tests/test_eval_worker_pool.py tests/test_eval.py tests/test_accuracy_benchmark.py tests/test_admin_external_accuracy_diagnostics.py tests/test_accuracy_upload.py`. Worker tests cover slot refilling, thinking-mode retries, sequential code scoring without blocking generation, and repeated cancellation during scoring. Real HumanEval, MBPP, and LiveCodeBench subprocess cases verify normal completion, cancellation draining, and temporary-file cleanup with a controlled engine; no model checkpoint is required.
+Run `python -m pytest -q tests/test_eval_worker_pool.py tests/test_eval.py tests/test_accuracy_benchmark.py apps/omlx-web/tests/test_admin_external_accuracy_diagnostics.py tests/test_accuracy_upload.py`. Worker tests cover slot refilling, thinking-mode retries, sequential code scoring without blocking generation, and repeated cancellation during scoring. Real HumanEval, MBPP, and LiveCodeBench subprocess cases verify normal completion, cancellation draining, and temporary-file cleanup with a controlled engine; no model checkpoint is required.
 
 # Profile API exposure tests
 
-Run `python -m pytest -q tests/test_admin_new_profile_expose_as_model.py tests/test_admin_profiles_api.py tests/test_model_settings_profiles.py`. The new-profile tests check toggle bindings, the OFF reset, and request serialization. Existing API tests cover the edit form, persistence, exposed model IDs, and name collisions.
+Run `python -m pytest -q apps/omlx-web/tests/test_admin_new_profile_expose_as_model.py tests/test_admin_profiles_api.py tests/test_model_settings_profiles.py`. The new-profile tests check toggle bindings, the OFF reset, and request serialization. Existing API tests cover the edit form, persistence, exposed model IDs, and name collisions.
 
 ### Lightning MTP with XTC sampling
 
@@ -178,7 +182,7 @@ Run `python -m pytest -q tests/test_vlm_cache_boundaries.py tests/test_vlm_engin
 
 ### Profile consistency
 
-Run `python -m pytest tests/test_model_settings_profiles.py tests/test_admin_profiles_api.py tests/test_admin_model_settings_template.py -q`. The editor behavior test executes the dashboard JavaScript with Node.js and is skipped if Node.js is unavailable. The cases cover latest-template application, same-name model preservation, renamed and deleted template references, persistence rollback, create-and-apply behavior, and preserving edits during focus refresh. The macOS `ProfileScopeTests` cover source references, stale copies, orphan visibility, and display names. For a manual cross-client check, edit a global profile in the web UI, apply it from the app, and verify the model's effective settings; repeat with an independent same-name model profile and with an unsaved editor open.
+Run `python -m pytest tests/test_model_settings_profiles.py tests/test_admin_profiles_api.py apps/omlx-web/tests/test_admin_model_settings_template.py -q`. The editor behavior test executes the dashboard JavaScript with Node.js and is skipped if Node.js is unavailable. The cases cover latest-template application, same-name model preservation, renamed and deleted template references, persistence rollback, create-and-apply behavior, and preserving edits during focus refresh. The macOS `ProfileScopeTests` cover source references, stale copies, orphan visibility, and display names. For a manual cross-client check, edit a global profile in the web UI, apply it from the app, and verify the model's effective settings; repeat with an independent same-name model profile and with an unsaved editor open.
 
 Global and model profiles may share display names while retaining separate IDs. Applying a global template reads its latest settings; deleting it preserves model copies as independent profiles. Both editors save and apply new profiles, and focus refresh preserves unsaved edits.
 

@@ -354,6 +354,9 @@ omlx serve --model-dir ~/models --hf-endpoint https://hf-mirror.com
 # API 키 인증
 omlx serve --model-dir ~/models --api-key your-secret-key
 # Localhost 전용: 관리자 패널 전체 설정에서 검증 건너뛰기
+
+# 웹 UI 없이 추론·관리자 API만 실행 (설정에 저장되지 않음)
+omlx serve --model-dir ~/models --headless
 ```
 
 모든 설정은 `/admin`의 웹 관리자 패널에서도 설정할 수 있습니다. 설정은 `~/.omlx/settings.json`에 저장되며, CLI 플래그가 우선합니다.
@@ -394,6 +397,10 @@ cd omlx
 pip install -e ".[dev]"
 pytest -m "not slow"
 ```
+
+### 웹 UI
+
+웹 관리자 UI는 `apps/omlx-web/`에 있고 같은 패키지에 포함되어 `pip install -e ".[dev]"`(또는 `make dev`)로 함께 설치됩니다. 템플릿, JavaScript, 번역을 수정한 뒤에는 `make web`으로 CSS를 다시 빌드하고 번역 파일을 정규화하세요.
 
 ### macOS 앱
 

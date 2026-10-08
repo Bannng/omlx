@@ -363,6 +363,9 @@ omlx serve --model-dir ~/models --api-key your-secret-key
 
 # Network access requires authentication
 OMLX_API_KEY=your-secret-key omlx serve --model-dir ~/models --host 0.0.0.0
+
+# Inference and admin APIs only, without the web UI (not saved to settings)
+omlx serve --model-dir ~/models --headless
 ```
 
 The default SSD cache limit, `auto`, uses 50% of the sum of free disk space and existing SSD cache files, including GDN sidecars. The budget is refreshed during use and does not shrink simply because the cache grows or the server restarts. Other disk usage can change the budget. Set `--paged-ssd-cache-max-size 20GB` for a fixed limit.
@@ -409,6 +412,10 @@ cd omlx
 pip install -e ".[dev]"
 pytest
 ```
+
+### Web UI
+
+The web admin UI lives in `apps/omlx-web/` and ships in the same package, so `pip install -e ".[dev]"` (or `make dev`) installs it too. After editing its templates, JavaScript, or translations, run `make web` to rebuild the CSS and normalize the translation files.
 
 ### macOS App
 

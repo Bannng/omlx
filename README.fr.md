@@ -309,6 +309,9 @@ omlx serve --model-dir ~/models --hf-endpoint https://hf-mirror.com
 # Authentification par clé API
 omlx serve --model-dir ~/models --api-key votre-clé-secrète
 # Localhost uniquement : désactivez la vérification via les paramètres globaux du panneau d'admin
+
+# API d'inférence et d'administration seulement, sans l'interface web (non enregistré dans les réglages)
+omlx serve --model-dir ~/models --headless
 ```
 
 Tous les paramètres peuvent aussi être configurés depuis le panneau d'admin web sur `/admin`. Les paramètres sont sauvegardés dans `~/.omlx/settings.json`, et les flags CLI ont la priorité.
@@ -349,6 +352,10 @@ cd omlx
 pip install -e ".[dev]"
 pytest -m "not slow"
 ```
+
+### Interface web
+
+L'interface web d'administration se trouve dans `apps/omlx-web/` et fait partie du même paquet, donc `pip install -e ".[dev]"` (ou `make dev`) l'installe aussi. Après avoir modifié ses templates, son JavaScript ou ses traductions, lancez `make web` pour reconstruire le CSS et normaliser les fichiers de traduction.
 
 ### Application macOS
 

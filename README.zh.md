@@ -309,6 +309,9 @@ omlx serve --model-dir ~/models --hf-endpoint https://hf-mirror.com
 # API 密钥认证
 omlx serve --model-dir ~/models --api-key your-secret-key
 # 仅限 Localhost：在管理后台全局设置中跳过验证
+
+# 仅运行推理和管理 API，不启用 Web UI（不会保存到设置）
+omlx serve --model-dir ~/models --headless
 ```
 
 以上所有设置也可以在 `/admin` 的 Web 管理后台中配置。设置保存在 `~/.omlx/settings.json`，CLI 参数优先级更高。
@@ -349,6 +352,10 @@ cd omlx
 pip install -e ".[dev]"
 pytest -m "not slow"
 ```
+
+### Web UI
+
+Web 管理界面位于 `apps/omlx-web/`，并包含在同一个包中，因此 `pip install -e ".[dev]"`（或 `make dev`）会一并安装。修改模板、JavaScript 或翻译后，运行 `make web` 重新构建 CSS 并规范化翻译文件。
 
 ### macOS 应用
 

@@ -306,6 +306,9 @@ omlx serve --model-dir ~/models --mcp-config mcp.json
 # APIキー認証
 omlx serve --model-dir ~/models --api-key your-secret-key
 # Localhost専用: 管理画面のグローバル設定で検証をスキップ
+
+# Web UIなしで推論・管理APIのみ起動（設定には保存されません）
+omlx serve --model-dir ~/models --headless
 ```
 
 すべての設定は`/admin`のWeb管理画面からも設定できます。設定は`~/.omlx/settings.json`に保存され、CLIフラグが優先されます。
@@ -346,6 +349,10 @@ cd omlx
 pip install -e ".[dev]"
 pytest -m "not slow"
 ```
+
+### Web UI
+
+Web管理UIは`apps/omlx-web/`にあり、同じパッケージに含まれるため`pip install -e ".[dev]"`（または`make dev`）で一緒にインストールされます。テンプレート、JavaScript、翻訳を編集したら`make web`でCSSを再ビルドし、翻訳ファイルを正規化してください。
 
 ### macOSアプリ
 
