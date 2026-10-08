@@ -241,6 +241,8 @@ OpenAI 和 Anthropic API 的直接替代品。支持流式使用统计（`stream
 | `GET /v1/models` | 列出可用模型 |
 | `POST /tokenize`, `POST /detokenize` | 兼容 vLLM 的分词器 API（也可通过 `/v1` 访问） |
 
+用于设置、模型、下载、量化和基准测试的管理 API 接受主 API 密钥作为 Bearer 令牌，在 headless 模式下同样可用。详见 [Admin API](docs/admin-api.md)。
+
 ### 工具调用与结构化输出
 
 支持 mlx-lm 中所有可用的函数调用格式、JSON Schema 验证和 MCP 工具集成。工具调用需要模型的聊天模板支持 `tools` 参数。以下模型系列通过 mlx-lm 的内置工具解析器自动检测：

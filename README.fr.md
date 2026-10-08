@@ -241,6 +241,8 @@ Remplacement direct des APIs OpenAI et Anthropic. Supporte les statistiques d'us
 | `GET /v1/models` | Lister les modèles disponibles |
 | `POST /tokenize`, `POST /detokenize` | API de tokenisation compatible vLLM (aussi sous `/v1`) |
 
+L'API d'administration (réglages, modèles, téléchargements, quantification, benchmarks) accepte la clé API principale comme jeton Bearer et fonctionne aussi en mode headless. Voir [Admin API](docs/admin-api.md).
+
 ### Appel d'outils et sorties structurées
 
 Supporte tous les formats d'appel de fonctions disponibles dans mlx-lm, la validation de schéma JSON, et l'intégration d'outils MCP. L'appel d'outils nécessite que le template de chat du modèle supporte le paramètre `tools`. Les familles de modèles suivantes sont auto-détectées via les parseurs intégrés de mlx-lm :

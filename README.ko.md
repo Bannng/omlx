@@ -278,6 +278,8 @@ OpenAI 및 Anthropic API를 그대로 대체합니다. 스트리밍 사용량 �
 | `GET /v1/models` | 사용 가능한 모델 목록 |
 | `POST /tokenize`, `POST /detokenize` | vLLM 호환 토크나이저 API (`/v1` 경로도 지원) |
 
+설정, 모델, 다운로드, 양자화, 벤치마크를 다루는 관리자 API는 메인 API 키를 Bearer 토큰으로 받으며 headless 모드에서도 동작합니다. [Admin API](docs/admin-api.md)를 참고하세요.
+
 ### Tool calling & 구조화된 출력
 
 mlx-lm에서 사용 가능한 모든 함수 호출 형식, JSON 스키마 검증, MCP 도구 통합을 지원합니다. Tool calling은 모델의 채팅 템플릿이 `tools` 파라미터를 지원해야 합니다. 다음 모델 패밀리가 mlx-lm의 내장 도구 파서를 통해 자동 감지됩니다:
