@@ -3,6 +3,7 @@
 
 import asyncio
 import json
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -113,9 +114,12 @@ class _PrefillingChatEngine:
 
     tokenizer = None
 
-    def __init__(self, prefill_steps=3, step_s=0.02):
+    def __init__(self, prefill_steps=3, step_s=0.02, queue_s=0.0, phase="prefill"):
         self.prefill_steps = prefill_steps
         self.step_s = step_s
+        self.queue_s = queue_s
+        self.phase = phase
+        self.prefill_started_at = None
         self.kwargs = None
         self.closed = False
 
@@ -127,6 +131,8 @@ class _PrefillingChatEngine:
         tracker = get_prefill_tracker()
         request_id = kwargs.get("_request_id", "untracked")
         try:
+            await asyncio.sleep(self.queue_s)
+            self.prefill_started_at = time.monotonic()
             # 48000-token prompt, 30000 cached: 18000 tokens left to prefill.
             for step in range(1, self.prefill_steps + 1):
                 await asyncio.sleep(self.step_s)
@@ -135,7 +141,12 @@ class _PrefillingChatEngine:
                     step * 18000 // (self.prefill_steps + 1),
                     18000,
                     "model",
-                    extra={"prompt_tokens": 48000, "cached_tokens": 30000},
+                    phase=self.phase,
+                    extra={
+                        "prompt_tokens": 48000,
+                        "cached_tokens": 30000,
+                        "prefill_started_at": self.prefill_started_at,
+                    },
                 )
             await asyncio.sleep(self.step_s)
             tracker.remove(request_id)
@@ -191,6 +202,30 @@ async def test_chat_stream_prompt_progress_follows_llama_cpp_order(monkeypatch):
     assert {(f["total"], f["cache"]) for f in frames} == {(48000, 30000)}
     assert all(b["processed"] > a["processed"] for a, b in zip(frames, frames[1:]))
     assert frames[-1]["processed"] == 48000
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_prompt_progress_time_excludes_queue_wait(monkeypatch):
+    monkeypatch.setattr(srv, "_PROMPT_PROGRESS_POLL_S", 0.005)
+    engine = _PrefillingChatEngine(queue_s=0.1)
+
+    payloads = await _chat_stream_payloads(engine, return_progress=True)
+
+    since_prefill_ms = (time.monotonic() - engine.prefill_started_at) * 1000
+    frames = [p["prompt_progress"] for p in payloads if "prompt_progress" in p]
+    assert frames[-1]["processed"] == 48000
+    assert all(f["time_ms"] <= since_prefill_ms for f in frames)
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_prompt_progress_skips_specprefill_phases(monkeypatch):
+    monkeypatch.setattr(srv, "_PROMPT_PROGRESS_POLL_S", 0.005)
+    engine = _PrefillingChatEngine(phase="specprefill_scoring")
+
+    payloads = await _chat_stream_payloads(engine, return_progress=True)
+
+    frames = [p["prompt_progress"] for p in payloads if "prompt_progress" in p]
+    assert [f["processed"] for f in frames] == [30000, 48000]
 
 
 @pytest.mark.asyncio

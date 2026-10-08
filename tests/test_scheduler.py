@@ -8013,7 +8013,7 @@ class TestSchedulerModelIdDerivation:
         self, mock_model, mock_tokenizer
     ):
         """Tracker counts cover the uncached suffix; the stream's
-        prompt_progress needs the full prompt and cache sizes."""
+        prompt_progress needs the full prompt, cache size and start time."""
         from omlx.prefill_progress import get_prefill_tracker
 
         scheduler = Scheduler(
@@ -8026,7 +8026,7 @@ class TestSchedulerModelIdDerivation:
 
         scheduler.uid_to_request_id[0] = "test-req"
         scheduler.requests["test-req"] = SimpleNamespace(
-            num_prompt_tokens=48000, cached_tokens=30000
+            num_prompt_tokens=48000, cached_tokens=30000, prefill_started_at=12.5
         )
         scheduler._on_prompt_progress([(0, 2048, 18000)])
 
@@ -8034,6 +8034,7 @@ class TestSchedulerModelIdDerivation:
         assert entry["processed"] == 2048
         assert entry["prompt_tokens"] == 48000
         assert entry["cached_tokens"] == 30000
+        assert entry["prefill_started_at"] == 12.5
         tracker.clear()
 
 

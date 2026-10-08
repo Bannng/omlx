@@ -2694,10 +2694,18 @@ async def _with_prompt_progress(
             if done:
                 break
             entry = tracker.get(request_id)
-            if not entry or not entry.get("prompt_tokens") or entry["total"] <= 0:
+            # SpecPrefill phases count draft-scored and sparse tokens, not the prompt.
+            if (
+                not entry
+                or entry.get("phase") != "prefill"
+                or not entry.get("prompt_tokens")
+                or entry["total"] <= 0
+            ):
                 continue
             if totals is None:
                 totals = (entry["prompt_tokens"], entry["cached_tokens"])
+                # Like llama.cpp, count time from prefill start, not queue entry.
+                start = entry.get("prefill_started_at") or start
                 yield _PromptProgress(totals[0], totals[1], totals[1], 0)
                 sent = totals[1]
             total, cache = totals
