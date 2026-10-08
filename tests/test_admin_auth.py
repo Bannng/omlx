@@ -12,6 +12,7 @@ from fastapi import HTTPException
 import omlx.server  # noqa: F401 — ensure server module is imported first
 import omlx.admin.auth as admin_auth
 import omlx.admin.routes as admin_routes
+import omlx.admin.webui as webui
 
 
 def _mock_global_settings(api_key=None):
@@ -19,6 +20,7 @@ def _mock_global_settings(api_key=None):
     mock = MagicMock()
     mock.auth.api_key = api_key
     mock.auth.skip_api_key_verification = False
+    mock.ui.language = "en"
     return mock
 
 
@@ -146,10 +148,10 @@ class TestLoginPage:
         original = _patch_getter(mock_settings)
         try:
             mock_request = MagicMock()
-            with patch("omlx.admin.auth.verify_session", return_value=False):
-                with patch.object(admin_routes, "templates") as mock_templates:
+            with patch("omlx.admin.routes.verify_session", return_value=False):
+                with patch.object(webui, "templates") as mock_templates:
                     mock_templates.TemplateResponse.return_value = MagicMock()
-                    asyncio.run(admin_routes.login_page(request=mock_request))
+                    asyncio.run(webui.login_page(request=mock_request))
                     mock_templates.TemplateResponse.assert_called_once_with(
                         mock_request, "login.html", {"api_key_configured": True}
                     )
@@ -163,11 +165,9 @@ class TestDashboardPage:
     def test_dashboard_page_uses_new_template_signature(self):
         """dashboard_page should pass request as first arg to TemplateResponse."""
         mock_request = MagicMock()
-        with patch.object(admin_routes, "templates") as mock_templates:
+        with patch.object(webui, "templates") as mock_templates:
             mock_templates.TemplateResponse.return_value = MagicMock()
-            asyncio.run(
-                admin_routes.dashboard_page(request=mock_request, is_admin=True)
-            )
+            asyncio.run(webui.dashboard_page(request=mock_request, is_admin=True))
             mock_templates.TemplateResponse.assert_called_once_with(
                 mock_request, "dashboard.html", {}
             )
@@ -182,11 +182,9 @@ class TestChatPageApiKeyInjection:
         original = _patch_getter(mock_settings)
         try:
             mock_request = MagicMock()
-            with patch.object(admin_routes, "templates") as mock_templates:
+            with patch.object(webui, "templates") as mock_templates:
                 mock_templates.TemplateResponse.return_value = MagicMock()
-                asyncio.run(
-                    admin_routes.chat_page(request=mock_request, is_admin=True)
-                )
+                asyncio.run(webui.chat_page(request=mock_request, is_admin=True))
                 mock_templates.TemplateResponse.assert_called_once_with(
                     mock_request,
                     "chat.html",
@@ -201,11 +199,9 @@ class TestChatPageApiKeyInjection:
         original = _patch_getter(mock_settings)
         try:
             mock_request = MagicMock()
-            with patch.object(admin_routes, "templates") as mock_templates:
+            with patch.object(webui, "templates") as mock_templates:
                 mock_templates.TemplateResponse.return_value = MagicMock()
-                asyncio.run(
-                    admin_routes.chat_page(request=mock_request, is_admin=True)
-                )
+                asyncio.run(webui.chat_page(request=mock_request, is_admin=True))
                 call_args = mock_templates.TemplateResponse.call_args
                 context = call_args[0][2]
                 assert context["api_key"] == ""
@@ -218,11 +214,9 @@ class TestChatPageApiKeyInjection:
         admin_routes._get_global_settings = lambda: None
         try:
             mock_request = MagicMock()
-            with patch.object(admin_routes, "templates") as mock_templates:
+            with patch.object(webui, "templates") as mock_templates:
                 mock_templates.TemplateResponse.return_value = MagicMock()
-                asyncio.run(
-                    admin_routes.chat_page(request=mock_request, is_admin=True)
-                )
+                asyncio.run(webui.chat_page(request=mock_request, is_admin=True))
                 call_args = mock_templates.TemplateResponse.call_args
                 context = call_args[0][2]
                 assert context["api_key"] == ""
@@ -287,12 +281,13 @@ class TestSkipAdminAuth:
         gs = MagicMock()
         gs.auth.skip_api_key_verification = True
         gs.auth.api_key = "test-key"
+        gs.ui.language = "en"
         gs.server.host = "127.0.0.1"
         original = _patch_getter(gs)
         try:
             mock_request = MagicMock()
-            with patch("omlx.admin.auth.verify_session", return_value=False):
-                result = asyncio.run(admin_routes.login_page(request=mock_request))
+            with patch("omlx.admin.routes.verify_session", return_value=False):
+                result = asyncio.run(webui.login_page(request=mock_request))
                 assert result.status_code == 302
                 assert result.headers["location"] == "/admin/dashboard"
         finally:
@@ -302,20 +297,21 @@ class TestSkipAdminAuth:
         gs = MagicMock()
         gs.auth.skip_api_key_verification = True
         gs.auth.api_key = "test-key"
+        gs.ui.language = "en"
         gs.server.host = "0.0.0.0"
         original = _patch_getter(gs)
         rendered = MagicMock()
         try:
             mock_request = MagicMock()
             with (
-                patch("omlx.admin.auth.verify_session", return_value=False),
+                patch("omlx.admin.routes.verify_session", return_value=False),
                 patch.object(
-                    admin_routes.templates,
+                    webui.templates,
                     "TemplateResponse",
                     return_value=rendered,
                 ),
             ):
-                result = asyncio.run(admin_routes.login_page(request=mock_request))
+                result = asyncio.run(webui.login_page(request=mock_request))
 
             assert result is rendered
         finally:

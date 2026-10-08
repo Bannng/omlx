@@ -31,6 +31,9 @@ _serializer = URLSafeTimedSerializer(SECRET_KEY)
 # Global settings getter (set by init_auth)
 _get_global_settings = None
 
+# Browser requests are redirected to the login page only while it is served.
+_web_ui_enabled = True
+
 
 def init_auth(secret_key: str, global_settings_getter=None) -> None:
     """Initialize authentication with a persistent secret key.
@@ -49,6 +52,17 @@ def init_auth(secret_key: str, global_settings_getter=None) -> None:
     _serializer = URLSafeTimedSerializer(key)
     if global_settings_getter is not None:
         _get_global_settings = global_settings_getter
+
+
+def set_web_ui_enabled(enabled: bool) -> None:
+    """Record whether the server serves the browser admin pages."""
+    global _web_ui_enabled
+    _web_ui_enabled = enabled
+
+
+def web_ui_enabled() -> bool:
+    """Return whether the server serves the browser admin pages."""
+    return _web_ui_enabled
 
 
 def create_session_token(remember: bool = False) -> str:
@@ -293,7 +307,7 @@ async def require_admin(request: Request) -> bool:
     if not verify_session(request):
         # Browser requests (Accept: text/html) get redirected to login page
         accept = request.headers.get("accept", "")
-        if "text/html" in accept:
+        if "text/html" in accept and _web_ui_enabled:
             raise _RedirectToLogin()
         raise HTTPException(
             status_code=401,

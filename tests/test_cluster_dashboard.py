@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from omlx.admin import routes as admin_routes
+from omlx.admin import webui
 
 ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD = ROOT / "omlx/admin/templates/dashboard.html"
@@ -20,7 +20,7 @@ JAVASCRIPT = ROOT / "omlx/admin/static/js/cluster_v2.js"
 
 
 def test_dashboard_renders_only_the_cluster_v2_flow():
-    rendered = admin_routes.templates.get_template("dashboard.html").render()
+    rendered = webui.templates.get_template("dashboard.html").render()
     source = DASHBOARD.read_text(encoding="utf-8")
 
     assert "data-cluster-v2-wizard" in rendered
@@ -89,7 +89,7 @@ def test_advanced_tools_preserve_cuda_connectx_and_diagnostics():
 
 
 def test_dashboard_does_not_reference_an_unbundled_alpine_plugin():
-    rendered = admin_routes.templates.get_template("dashboard.html").render()
+    rendered = webui.templates.get_template("dashboard.html").render()
     assert "@alpinejs/" not in rendered
     assert "alpine-collapse" not in rendered
 

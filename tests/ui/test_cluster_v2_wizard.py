@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from omlx.admin import routes as admin_routes
+from omlx.admin import webui
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "tests/ui/fixtures/cluster_v2"
@@ -99,7 +99,7 @@ def _fixtures():
 
 
 def test_dashboard_renders_every_wizard_state():
-    rendered = admin_routes.templates.get_template("dashboard.html").render()
+    rendered = webui.templates.get_template("dashboard.html").render()
 
     assert "data-cluster-v2-wizard" in rendered
     for state in WIZARD_STATES:

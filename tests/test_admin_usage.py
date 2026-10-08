@@ -12,6 +12,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from omlx.admin import webui
 from omlx.admin.auth import require_admin
 from omlx.admin.routes import router
 from omlx.server_metrics import ServerMetrics
@@ -29,14 +30,27 @@ USAGE_HISTORY_I18N_KEYS = {
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, monkeypatch):
     metrics = ServerMetrics()
     metrics.usage_history = UsageHistory(tmp_path / "usage.sqlite3")
     metrics.record_request_complete(100, 20, 60, 0.5, 1.0, "canonical-model", 2.0)
     metrics.usage_history.flush()
+    monkeypatch.setattr(
+        webui,
+        "_host",
+        webui.WebUIHost(
+            version="test",
+            require_admin=require_admin,
+            is_admin=lambda request: True,
+            ui_language=lambda: "en",
+            main_api_key=lambda: None,
+        ),
+    )
     app = FastAPI()
+    app.include_router(webui.router)
     app.include_router(router)
     app.dependency_overrides[require_admin] = lambda: True
+    app.dependency_overrides[webui.require_admin] = lambda: True
     with (
         patch("omlx.server_metrics.get_server_metrics", return_value=metrics),
         TestClient(app) as client,

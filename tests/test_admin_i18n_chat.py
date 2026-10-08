@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from omlx.admin import routes as admin_routes
+from omlx.admin import webui
 
 
 def _chat_template() -> str:
@@ -26,9 +26,9 @@ def test_locale_loader_uses_english_fallback_for_missing_keys(tmp_path, monkeypa
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(admin_routes, "_i18n_dir", tmp_path)
+    monkeypatch.setattr(webui, "_i18n_dir", tmp_path)
     monkeypatch.setattr(
-        admin_routes,
+        webui,
         "_en_locale",
         {
             "chat.model_tab": "Model",
@@ -36,7 +36,7 @@ def test_locale_loader_uses_english_fallback_for_missing_keys(tmp_path, monkeypa
         },
     )
 
-    locale = admin_routes._load_locale("ru")
+    locale = webui._load_locale("ru")
 
     assert locale["chat.model_tab"] == "Модель"
     assert locale["chat.future_key"] == "English fallback"

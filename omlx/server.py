@@ -781,9 +781,15 @@ except ImportError:
     pass
 
 # Include admin routes
-from .admin.auth import _RedirectToLogin, require_admin
+from .admin import webui
+from .admin.auth import _RedirectToLogin, require_admin, set_web_ui_enabled
+from .admin.routes import (
+    configured_api_key,
+    configured_ui_language,
+    is_admin_request,
+    set_admin_getters,
+)
 from .admin.routes import router as admin_router
-from .admin.routes import set_admin_getters
 
 set_admin_getters(
     get_server_state,
@@ -791,6 +797,21 @@ set_admin_getters(
     lambda: _server_state.settings_manager,
     lambda: _server_state.global_settings,
 )
+if os.environ.get("OMLX_HEADLESS", "0") == "1":
+    set_web_ui_enabled(False)
+    logger.info("Headless mode: serving the API without the web UI")
+else:
+    webui.set_host(
+        webui.WebUIHost(
+            version=__version__,
+            require_admin=require_admin,
+            is_admin=is_admin_request,
+            ui_language=configured_ui_language,
+            main_api_key=configured_api_key,
+        )
+    )
+    # Before admin_router so the page routes keep their original order.
+    app.include_router(webui.router)
 app.include_router(admin_router)
 
 _cluster_routes_registered = False
@@ -2295,11 +2316,6 @@ def init_server(
             / "response-state"
         )
     _server_state.responses_store = ResponseStore(state_dir=response_state_dir)
-
-    # Refresh i18n with loaded language setting
-    from .admin.routes import _refresh_i18n_globals
-
-    _refresh_i18n_globals()
 
     # Initialize auth with persistent secret key
     if global_settings:

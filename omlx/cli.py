@@ -346,6 +346,10 @@ def serve_command(args):
         )
         serve_sockets.append(extra_cfg.bind_socket())
 
+    # Read by omlx.server at import time.
+    if getattr(args, "headless", False):
+        os.environ["OMLX_HEADLESS"] = "1"
+
     try:
         # Import server and config after the port is known to be available.
         from .server import init_server
@@ -1362,6 +1366,12 @@ Example directory structure:
         type=str,
         default=None,
         help="API key for authentication (required for non-loopback binds)",
+    )
+    serve_parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Serve the inference and admin APIs without the web UI. "
+        "Not saved to settings; same as OMLX_HEADLESS=1",
     )
 
     # Launch command
