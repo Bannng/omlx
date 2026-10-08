@@ -108,6 +108,178 @@ async def test_text_completion_stream_forwards_transport_request_id():
     assert engine.kwargs["_request_id"] == "transport-completion-1"
 
 
+class _PrefillingChatEngine:
+    """Fake chat engine that advances the prefill tracker like the scheduler."""
+
+    tokenizer = None
+
+    def __init__(self, prefill_steps=3, step_s=0.02):
+        self.prefill_steps = prefill_steps
+        self.step_s = step_s
+        self.kwargs = None
+        self.closed = False
+
+    async def stream_chat(self, messages, **kwargs):
+        from omlx.engine.base import GenerationOutput
+        from omlx.prefill_progress import get_prefill_tracker
+
+        self.kwargs = kwargs
+        tracker = get_prefill_tracker()
+        request_id = kwargs.get("_request_id", "untracked")
+        try:
+            # 48000-token prompt, 30000 cached: 18000 tokens left to prefill.
+            for step in range(1, self.prefill_steps + 1):
+                await asyncio.sleep(self.step_s)
+                tracker.update(
+                    request_id,
+                    step * 18000 // (self.prefill_steps + 1),
+                    18000,
+                    "model",
+                    extra={"prompt_tokens": 48000, "cached_tokens": 30000},
+                )
+            await asyncio.sleep(self.step_s)
+            tracker.remove(request_id)
+            yield GenerationOutput(
+                text="hi",
+                new_text="hi",
+                prompt_tokens=48000,
+                cached_tokens=30000,
+                completion_tokens=1,
+                finished=True,
+                finish_reason="stop",
+            )
+        finally:
+            self.closed = True
+
+
+async def _chat_stream_payloads(engine, return_progress):
+    from omlx.api.openai_models import ChatCompletionRequest, Message
+    from omlx.server import stream_chat_completion
+
+    request = ChatCompletionRequest(
+        model="model",
+        messages=[Message(role="user", content="hello")],
+        stream=True,
+        return_progress=return_progress,
+    )
+    payloads = []
+    async for chunk in stream_chat_completion(
+        engine, [{"role": "user", "content": "hello"}], request, response_id="cc-1"
+    ):
+        body = chunk.removeprefix("data: ").strip()
+        if body != "[DONE]":
+            payloads.append(json.loads(body))
+    return payloads
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_prompt_progress_follows_llama_cpp_order(monkeypatch):
+    monkeypatch.setattr(srv, "_PROMPT_PROGRESS_POLL_S", 0.005)
+    engine = _PrefillingChatEngine()
+
+    payloads = await _chat_stream_payloads(engine, return_progress=True)
+
+    progress_at = [i for i, p in enumerate(payloads) if "prompt_progress" in p]
+    first_content = next(
+        i for i, p in enumerate(payloads) if p["choices"][0]["delta"].get("content")
+    )
+    frames = [payloads[i]["prompt_progress"] for i in progress_at]
+    assert engine.kwargs["_request_id"]
+    assert all(payloads[i]["id"] == "cc-1" for i in progress_at)
+    assert progress_at[-1] < first_content
+    assert frames[0]["processed"] == frames[0]["cache"] == 30000
+    assert {(f["total"], f["cache"]) for f in frames} == {(48000, 30000)}
+    assert all(b["processed"] > a["processed"] for a, b in zip(frames, frames[1:]))
+    assert frames[-1]["processed"] == 48000
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_without_return_progress_is_unchanged(monkeypatch):
+    monkeypatch.setattr(srv, "_PROMPT_PROGRESS_POLL_S", 0.005)
+    engine = _PrefillingChatEngine()
+
+    payloads = await _chat_stream_payloads(engine, return_progress=False)
+
+    assert not any("prompt_progress" in p for p in payloads)
+    assert "_request_id" not in engine.kwargs
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_prompt_progress_cancel_closes_engine_stream():
+    from omlx.api.openai_models import ChatCompletionRequest, Message
+    from omlx.server import stream_chat_completion
+
+    engine = _PrefillingChatEngine(prefill_steps=1, step_s=10.0)
+    request = ChatCompletionRequest(
+        model="model",
+        messages=[Message(role="user", content="hello")],
+        stream=True,
+        return_progress=True,
+    )
+    stream = stream_chat_completion(
+        engine, [{"role": "user", "content": "hello"}], request, response_id="cc-1"
+    )
+    assert '"role":"assistant"' in await stream.__anext__()
+
+    pending = asyncio.ensure_future(stream.__anext__())
+    await asyncio.sleep(0.05)
+    pending.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+
+    assert engine.closed
+
+
+@pytest.mark.asyncio
+async def test_completion_stream_prompt_progress_without_tracker_entry():
+    from omlx.api.openai_models import CompletionRequest
+    from omlx.engine.base import GenerationOutput
+    from omlx.server import stream_completion
+
+    class Engine:
+        tokenizer = None
+
+        def __init__(self):
+            self.kwargs = None
+
+        async def stream_generate(self, **kwargs):
+            self.kwargs = kwargs
+            yield GenerationOutput(
+                text="hi",
+                new_text="hi",
+                prompt_tokens=900,
+                cached_tokens=512,
+                completion_tokens=1,
+                finished=True,
+                finish_reason="stop",
+            )
+
+    engine = Engine()
+    request = CompletionRequest(
+        model="model", prompt="hello", stream=True, return_progress=True
+    )
+
+    chunks = [
+        json.loads(chunk.removeprefix("data: "))
+        async for chunk in stream_completion(
+            engine,
+            "hello",
+            request,
+            prompt_token_ids=[],
+            response_id="cmpl-1",
+            inference_request_id="transport-completion-1",
+        )
+        if chunk.strip() != "data: [DONE]"
+    ]
+
+    # A prefill too short to reach the tracker still reports 0% and 100%.
+    assert engine.kwargs["_request_id"] == "transport-completion-1"
+    assert [c["prompt_progress"]["processed"] for c in chunks[:2]] == [512, 900]
+    assert chunks[0]["object"] == "text_completion"
+    assert chunks[0]["choices"][0]["text"] == ""
+    assert chunks[2]["choices"][0]["text"] == "hi"
+
+
 class TestDiffusionStructuredOutputGuard:
     class _DiffusionEngine:
         is_diffusion_model = True

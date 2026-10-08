@@ -48,7 +48,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Optional, Union
@@ -214,6 +214,7 @@ from .exceptions import (
 )
 from .model_settings import forced_ct_keys, merge_chat_template_request_kwargs
 from .models.decision import DecisionContextLengthError, DecisionRequestError
+from .prefill_progress import get_prefill_tracker
 from .server_metrics import get_server_metrics, reset_server_metrics
 
 logging.basicConfig(level=logging.INFO)
@@ -2657,6 +2658,77 @@ async def _aclose_async_iterator(iterator: object) -> None:
     close = getattr(iterator, "aclose", None)
     if callable(close):
         await close()
+
+
+_PROMPT_PROGRESS_POLL_S = 0.5
+
+
+@dataclass(frozen=True)
+class _PromptProgress:
+    """llama.cpp ``prompt_progress`` payload. Token counts include the cache."""
+
+    total: int
+    cache: int
+    processed: int
+    time_ms: int
+
+
+async def _with_prompt_progress(
+    outputs: AsyncIterator[GenerationOutput],
+    request_id: str,
+) -> AsyncIterator[GenerationOutput | _PromptProgress]:
+    """Interleave ``_PromptProgress`` events before the first engine output.
+
+    Event order matches llama.cpp: 0% (``processed == cache``), strictly
+    increasing updates, then 100% right before the first output.
+    """
+    tracker = get_prefill_tracker()
+    ait = outputs.__aiter__()
+    start = time.monotonic()
+    task: asyncio.Future | None = asyncio.ensure_future(_safe_anext(ait))
+    totals: tuple[int, int] | None = None
+    sent = -1
+    try:
+        while True:
+            done, _ = await asyncio.wait({task}, timeout=_PROMPT_PROGRESS_POLL_S)
+            if done:
+                break
+            entry = tracker.get(request_id)
+            if not entry or not entry.get("prompt_tokens") or entry["total"] <= 0:
+                continue
+            if totals is None:
+                totals = (entry["prompt_tokens"], entry["cached_tokens"])
+                yield _PromptProgress(totals[0], totals[1], totals[1], 0)
+                sent = totals[1]
+            total, cache = totals
+            # Tracker counts cover only the uncached suffix.
+            processed = cache + (total - cache) * entry["processed"] // entry["total"]
+            if sent < processed < total:
+                # Stamp with the scheduler's update time, not the poll time.
+                time_ms = int((entry["last_time"] - start) * 1000)
+                yield _PromptProgress(total, cache, processed, time_ms)
+                sent = processed
+        first = task.result()
+        task = None
+        if first is _KEEPALIVE_SENTINEL:
+            return
+        if totals is None and first.prompt_tokens > 0:
+            cache = min(first.cached_tokens, first.prompt_tokens)
+            totals = (first.prompt_tokens, cache)
+            yield _PromptProgress(totals[0], totals[1], totals[1], 0)
+            sent = totals[1]
+        if totals is not None and sent < totals[0]:
+            time_ms = int((time.monotonic() - start) * 1000)
+            yield _PromptProgress(totals[0], totals[1], totals[0], time_ms)
+        yield first
+        async for output in ait:
+            yield output
+    finally:
+        if task is not None and not task.done():
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+        await _aclose_async_iterator(outputs)
 
 
 def _request_abort_id(engine: BaseEngine) -> str | None:
@@ -5330,6 +5402,10 @@ async def stream_completion(
         gen_kwargs["thinking_budget"] = thinking_budget
     if inference_request_id is not None:
         gen_kwargs["_request_id"] = inference_request_id
+    progress_request_id = None
+    if request.return_progress:
+        # The engine keys the prefill tracker by this id.
+        progress_request_id = gen_kwargs.setdefault("_request_id", str(uuid.uuid4()))
     # Widen the repetition-penalty look-back window when the client
     # asks for it (mlx-lm default window is 20 tokens).
     repetition_context_size = getattr(
@@ -5337,23 +5413,37 @@ async def stream_completion(
     )
     if repetition_context_size is not None:
         gen_kwargs["repetition_context_size"] = repetition_context_size
+    outputs = engine.stream_generate(
+        prompt=prompt,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        top_k=top_k,
+        min_p=min_p,
+        repetition_penalty=repetition_penalty,
+        presence_penalty=presence_penalty,
+        frequency_penalty=frequency_penalty,
+        xtc_probability=xtc_probability,
+        xtc_threshold=xtc_threshold,
+        stop=request.stop,
+        seed=request.seed,
+        **gen_kwargs,
+    )
+    if progress_request_id is not None:
+        outputs = _with_prompt_progress(outputs, progress_request_id)
     try:
-        async for output in engine.stream_generate(
-            prompt=prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            top_k=top_k,
-            min_p=min_p,
-            repetition_penalty=repetition_penalty,
-            presence_penalty=presence_penalty,
-            frequency_penalty=frequency_penalty,
-            xtc_probability=xtc_probability,
-            xtc_threshold=xtc_threshold,
-            stop=request.stop,
-            seed=request.seed,
-            **gen_kwargs,
-        ):
+        async for output in outputs:
+            if isinstance(output, _PromptProgress):
+                data = {
+                    "id": response_id,
+                    "object": "text_completion",
+                    "created": int(time.time()),
+                    "model": request.model,
+                    "choices": [{"index": 0, "text": "", "finish_reason": None}],
+                    "prompt_progress": asdict(output),
+                }
+                yield f"data: {json.dumps(data)}\n\n"
+                continue
             if first_token_time is None and output.new_text:
                 first_token_time = time.perf_counter()
             last_output = output
@@ -5791,9 +5881,30 @@ async def stream_chat_completion(
             thinking_filter = _thinking_filter
         else:
             stream_content = False
+    progress_request_id = None
+    if request.return_progress:
+        # The engine keys the prefill tracker by this id.
+        progress_request_id = kwargs.setdefault("_request_id", str(uuid.uuid4()))
     engine_stream = engine.stream_chat(messages=messages, **kwargs)
+    if progress_request_id is not None:
+        engine_stream = _with_prompt_progress(engine_stream, progress_request_id)
     try:
         async for output in engine_stream:
+            if isinstance(output, _PromptProgress):
+                progress_chunk = ChatCompletionChunk(
+                    id=response_id,
+                    model=request.model,
+                    choices=[
+                        ChatCompletionChunkChoice(
+                            delta=ChatCompletionChunkDelta(
+                                role="assistant", content=""
+                            ),
+                        )
+                    ],
+                ).model_dump(exclude_none=True)
+                progress_chunk["prompt_progress"] = asdict(output)
+                yield f"data: {json.dumps(progress_chunk)}\n\n"
+                continue
             if first_token_time is None:
                 produced_at = getattr(output, "first_token_at", None)
                 if produced_at is None:
