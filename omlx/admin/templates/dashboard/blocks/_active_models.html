@@ -41,28 +41,6 @@
             </div>
         </div>
     </div>
-    <!-- Resident model memory against the machine: measured, estimated, soft and hard limits -->
-    <div x-show="memoryWatermark.visible" x-cloak class="px-4 sm:px-6 py-4 border-b border-neutral-100">
-        <div class="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs">
-            <span class="font-bold uppercase tracking-wider text-neutral-500">{{ t('status.memory.heading') }}</span>
-            <span class="text-neutral-500 tabular-nums"
-                  x-text="formatSizeBytes(memoryWatermark.actual) + ' / ' + formatSizeBytes(memoryWatermark.hard || memoryWatermark.total)"></span>
-        </div>
-        <div class="watermark">
-            <div class="watermark__estimated" :style="'width: ' + memoryWatermark.estimatedPercent + '%'"></div>
-            <div class="watermark__actual" :style="'width: ' + memoryWatermark.actualPercent + '%; background-color: ' + activeModelsPressureBarColor"></div>
-            <div class="watermark__marker watermark__marker--soft" x-show="memoryWatermark.softPercent > 0"
-                 :style="'left: ' + memoryWatermark.softPercent + '%'"></div>
-            <div class="watermark__marker" x-show="memoryWatermark.hardPercent > 0"
-                 :style="'left: ' + memoryWatermark.hardPercent + '%'"></div>
-        </div>
-        <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-neutral-500">
-            <span><span class="watermark__swatch" :style="'background-color: ' + activeModelsPressureBarColor"></span>{{ t('status.memory.actual') }} <span class="tabular-nums" x-text="formatSizeBytes(memoryWatermark.actual)"></span></span>
-            <span><span class="watermark__swatch watermark__swatch--estimated"></span>{{ t('status.memory.estimated') }} <span class="tabular-nums" x-text="formatSizeBytes(memoryWatermark.estimated)"></span></span>
-            <span x-show="memoryWatermark.soft > 0"><span class="watermark__swatch watermark__swatch--soft"></span>{{ t('status.memory.soft') }} <span class="tabular-nums" x-text="formatSizeBytes(memoryWatermark.soft)"></span></span>
-            <span x-show="memoryWatermark.hard > 0"><span class="watermark__swatch watermark__swatch--hard"></span>{{ t('status.memory.hard') }} <span class="tabular-nums" x-text="formatSizeBytes(memoryWatermark.hard)"></span></span>
-        </div>
-    </div>
     <div class="divide-y divide-neutral-100">
         <!-- Empty state -->
         <div x-show="!stats.active_models.models || stats.active_models.models.length === 0"
