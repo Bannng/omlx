@@ -1285,3 +1285,43 @@
     }
     .nav-tooltip:hover::after,
     .nav-tooltip:focus-visible::after { opacity: 1; }
+
+    /* === Sub-tab row === */
+    /* Pins under the sticky navbar. <main> must not clip overflow, or it becomes
+       the scroll container and nothing inside it sticks (see dashboard.html). */
+    :root { --dashboard-topbar-height: 77px; }
+    .page-tabs {
+        position: sticky;
+        top: var(--dashboard-topbar-height);
+        z-index: 30;
+        background-color: var(--bg-primary);
+        padding-block: 0.5rem 0.75rem;
+    }
+
+    /* === Segmented control === */
+    .segmented {
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem;
+        background-color: var(--bg-tertiary);
+        border-radius: 0.5rem;
+    }
+    .segmented__item {
+        padding: 0.25rem 0.75rem;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        font-weight: 500;
+        color: var(--text-secondary);
+        background-color: transparent;
+        border: 0;
+        border-radius: 0.375rem;
+        cursor: pointer;
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }
+    .segmented__item:hover { color: var(--text-primary); }
+    .segmented__item--active {
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+    }

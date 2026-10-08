@@ -13,10 +13,13 @@
     {% include "dashboard/_navbar.html" %}
 
     <!-- Main Content -->
-    <main class="flex-grow relative overflow-hidden">
-        <!-- Background Effects -->
-        <div class="absolute inset-0 bg-grain pointer-events-none z-0"></div>
-        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-neutral-50 to-transparent rounded-full blur-3xl -z-10 opacity-50"></div>
+    <main class="flex-grow relative">
+        <!-- Background Effects. They clip themselves: overflow-hidden on <main>
+             would stop the sub-tab row and the settings rail from sticking. -->
+        <div class="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+            <div class="absolute inset-0 bg-grain z-0"></div>
+            <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-neutral-50 to-transparent rounded-full blur-3xl -z-10 opacity-50"></div>
+        </div>
 
         <div class="mx-auto px-4 sm:px-6 py-6 sm:py-10 relative z-10" :class="mainTab === 'status' ? dashboardWidthClass : 'max-w-7xl'">
             <!-- Status Main Tab -->

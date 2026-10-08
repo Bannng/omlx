@@ -1,39 +1,9 @@
+{% import "components/ui.html" as ui %}
             <div x-show="mainTab === 'models'" x-cloak role="tabpanel" id="panel-models" aria-labelledby="tab-models">
                 <div class="animate-fade-in-up">
-                    <!-- Sub-tab navigation (Manager / Downloader) -->
-                    <div class="flex flex-wrap items-center gap-2 mb-10 animate-fade-in-up">
-                        <button
-                            @click="setModelsTab('manager')"
-                            :class="modelsTab === 'manager'
-                                ? 'bg-neutral-900 text-white'
-                                : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'"
-                            class="px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200">
-                            {{ t('models.tab.manager') }}
-                        </button>
-                        <button
-                            @click="setModelsTab('downloader')"
-                            :class="modelsTab === 'downloader'
-                                ? 'bg-neutral-900 text-white'
-                                : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'"
-                            class="px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200">
-                            {{ t('models.tab.downloader') }}
-                        </button>
-                        <button
-                            @click="setModelsTab('quantizer')"
-                            :class="modelsTab === 'quantizer'
-                                ? 'bg-neutral-900 text-white'
-                                : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'"
-                            class="px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200">
-                            {{ t('models.tab.quantizer') }}
-                        </button>
-                        <button
-                            @click="setModelsTab('uploader')"
-                            :class="modelsTab === 'uploader'
-                                ? 'bg-neutral-900 text-white'
-                                : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'"
-                            class="px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200">
-                            {{ t('models.tab.uploader') }}
-                        </button>
+                    <div class="page-tabs mb-6 animate-fade-in-up">
+                        {{ ui.segmented([('manager', t('models.tab.manager')), ('downloader', t('models.tab.downloader')), ('quantizer', t('models.tab.quantizer')), ('uploader', t('models.tab.uploader'))],
+                                        'modelsTab', "setModelsTab('{value}')", aria_label=t('navbar.tab.models')) }}
                     </div>
 
                     <!-- ==================== MANAGER TAB ==================== -->

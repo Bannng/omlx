@@ -1,3 +1,4 @@
+{% import "components/ui.html" as ui %}
             {% macro bench_th(label_key, tooltip_key, align='right') %}
             <th class="text-{{ align }} px-4 py-3 font-semibold text-neutral-600">
                 <div class="inline-flex items-center gap-1 {% if align == 'right' %}justify-end{% endif %}">
@@ -10,32 +11,9 @@
             </th>
             {% endmacro %}
             <div x-show="mainTab === 'bench'" x-cloak role="tabpanel" id="panel-bench" aria-labelledby="tab-bench">
-                <!-- Sub-tab navigation -->
-                <div class="flex flex-wrap items-center gap-2 mb-10 animate-fade-in-up">
-                    <button
-                        @click="setBenchTab('throughput')"
-                        :class="benchTab === 'throughput'
-                            ? 'bg-neutral-900 text-white'
-                            : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'"
-                        class="px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200">
-                        {{ t('navbar.dropdown.performance') }}
-                    </button>
-                    <button
-                        @click="setBenchTab('accuracy')"
-                        :class="benchTab === 'accuracy'
-                            ? 'bg-neutral-900 text-white'
-                            : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'"
-                        class="px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200">
-                        {{ t('navbar.dropdown.accuracy') }}
-                    </button>
-                    <button
-                        @click="setBenchTab('context')"
-                        :class="benchTab === 'context'
-                            ? 'bg-neutral-900 text-white'
-                            : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'"
-                        class="px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200">
-                        {{ t('navbar.dropdown.context') }}
-                    </button>
+                <div class="page-tabs mb-6 animate-fade-in-up">
+                    {{ ui.segmented([('throughput', t('navbar.dropdown.performance')), ('accuracy', t('navbar.dropdown.accuracy')), ('context', t('navbar.dropdown.context'))],
+                                    'benchTab', "setBenchTab('{value}')", aria_label=t('navbar.tab.bench')) }}
                 </div>
 
                 <!-- Throughput tab -->

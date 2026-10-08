@@ -1,33 +1,8 @@
+{% import "components/ui.html" as ui %}
             <div x-show="mainTab === 'settings'" x-cloak role="tabpanel" id="panel-settings" aria-labelledby="tab-settings">
-            <!-- Tab Navigation -->
-            <div class="flex items-center gap-2 mb-10 animate-fade-in-up">
-                <button
-                    @click="setSettingsTab('global')"
-                    :class="activeTab === 'global'
-                        ? 'bg-neutral-900 text-white'
-                        : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'"
-                    class="px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200"
-                >
-                    {{ t('settings.tab.global') }}
-                </button>
-                <button
-                    @click="setSettingsTab('models')"
-                    :class="activeTab === 'models'
-                        ? 'bg-neutral-900 text-white'
-                        : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'"
-                    class="px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200"
-                >
-                    {{ t('settings.tab.models') }}
-                </button>
-                <button
-                    @click="setSettingsTab('integrations')"
-                    :class="activeTab === 'integrations'
-                        ? 'bg-neutral-900 text-white'
-                        : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'"
-                    class="px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200"
-                >
-                    {{ t('settings.tab.integrations') }}
-                </button>
+            <div class="page-tabs mb-6 animate-fade-in-up">
+                {{ ui.segmented([('global', t('settings.tab.global')), ('models', t('settings.tab.models')), ('integrations', t('settings.tab.integrations'))],
+                                'activeTab', "setSettingsTab('{value}')", aria_label=t('navbar.tab.settings')) }}
             </div>
 
             <!-- Global Settings Tab -->
