@@ -6471,13 +6471,6 @@
                 return info.loaded ? 'loaded' : 'unloaded';
             },
 
-            managerModelMemory(name) {
-                const info = this.managerModelInfo(name) || {};
-                const measured = !info.is_loading && info.actual_size ? info.actual_size_formatted : '';
-                return { value: measured ? '~' + measured : (info.estimated_size_formatted || '-'),
-                         estimate: measured ? info.estimated_size_formatted || '' : '' };
-            },
-
             startManagerStatusRefresh() {
                 this.stopManagerStatusRefresh();
                 this._managerStatusTimer = setInterval(() => {

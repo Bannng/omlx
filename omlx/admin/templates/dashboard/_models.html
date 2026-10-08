@@ -80,7 +80,6 @@
                                         {{ t('models.manager.table.type') }}
                                         <span x-show="managerSortBy === 'type'" x-text="managerSortOrder === 'asc' ? '▲' : '▼'" class="text-[10px]"></span>
                                     </div>
-                                    <div class="hidden md:block w-24 text-center">{{ t('models.manager.table.memory') }}</div>
                                     <div class="hidden sm:flex w-24 text-center items-center justify-center gap-1 cursor-pointer hover:text-neutral-700 select-none" @click="toggleManagerSort('size')">
                                         {{ t('models.manager.table.size') }}
                                         <span x-show="managerSortBy === 'size'" x-text="managerSortOrder === 'asc' ? '▲' : '▼'" class="text-[10px]"></span>
@@ -133,10 +132,6 @@
                                                 <span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-neutral-100 text-neutral-500 border border-neutral-200 uppercase tracking-wide"
                                                       x-text="managerModelInfo(model.name)?.model_type || 'llm'"></span>
                                             </div>
-                                            <!-- Memory: measured once loaded, the estimate otherwise -->
-                                            <div class="hidden md:block w-24 text-center text-xs text-neutral-700 tabular-nums"
-                                                 :title="managerModelMemory(model.name).estimate ? window.t('status.memory.estimated') + ' ' + managerModelMemory(model.name).estimate : ''"
-                                                 x-text="managerModelMemory(model.name).value"></div>
                                             <!-- Size -->
                                             <div class="hidden sm:block w-24 text-center text-xs text-neutral-500 tabular-nums" x-text="model.size_formatted"></div>
                                             <!-- Actions -->
