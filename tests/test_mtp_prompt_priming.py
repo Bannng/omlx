@@ -17,6 +17,7 @@ import pytest
 mx = pytest.importorskip("mlx.core")
 
 from omlx.patches.mlx_lm_mtp import prompt_priming
+from omlx.prefill.packed import PackedBatch, PackedRow, PackedRows
 
 
 TINY_CONFIG = {
@@ -1179,7 +1180,6 @@ def capture(host, tokens, offset):
 
 
 def test_packed_prefill_folds_each_row_into_its_own_request():
-    from omlx.prefill.packed import PackedBatch, PackedRow, PackedRows
 
     host = HeadHost()
     prepare(host, "a", [1, 2, 3, 4])

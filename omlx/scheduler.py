@@ -1596,6 +1596,10 @@ _DECODE_ACTIVITY_TTL_S = 2.5
 _PACKED_PREFILL_MAX_ROWS = 4
 
 
+def _ceil_to_contended_grid(tokens: int) -> int:
+    return -(-tokens // _CONTENDED_CHUNK_GRID) * _CONTENDED_CHUNK_GRID
+
+
 # Fraction of the room between current usage and the enforcer's abort
 # watermark that one prefill chunk may plan to consume once the sizing target
 # is already exceeded. Must stay below 1.0: a chunk sized to land exactly on
@@ -4872,6 +4876,7 @@ class Scheduler:
         loop_label: str,
         kv_len: int = 0,
         gathered_core: bool = False,
+        probe: bool = False,
     ) -> int:
         """Size the next prefill chunk so its predicted peak stays under a
         safety margin below the hard cap.
@@ -4958,7 +4963,8 @@ class Scheduler:
             maybe_raise_eviction = getattr(
                 self, "_raise_prefill_eviction_if_available", None
             )
-            if callable(maybe_raise_eviction):
+            # A probe only prices the chunk: no eviction pause or notice.
+            if callable(maybe_raise_eviction) and not probe:
                 maybe_raise_eviction(
                     request_id=request_id,
                     current=current,
@@ -5009,7 +5015,11 @@ class Scheduler:
 
         n = self._snap_chunk_size(n, requested)
 
-        if n < requested and request_id not in self._throttle_notified_requests:
+        if (
+            n < requested
+            and not probe
+            and request_id not in self._throttle_notified_requests
+        ):
             self._throttle_notified_requests.add(request_id)
             binding_str, advice = describe_ceiling_binding(
                 static=self._memory_static_ceiling_bytes,
@@ -5806,8 +5816,7 @@ class Scheduler:
 
         Use max(MLX active memory, physical footprint), reclaim once above the
         stable physical cap, and stop if still over it. RuntimeError preserves
-        the existing bounded memory-pressure retry path. Batched callers must
-        check before any cancellation compaction, extraction or decode handoff.
+        the existing bounded memory-pressure retry path.
         """
         if self._memory_limit_bytes > 0:
             current = self._current_usage_bytes()
@@ -5852,7 +5861,7 @@ class Scheduler:
                 )
             elif current > self._memory_limit_bytes:
                 # Speed priority runs full chunks through this caution band
-                # by design — the per-chunk notice is DEBUG there, not a
+                # by design - the per-chunk notice is DEBUG there, not a
                 # warning about an unexpected state.
                 _log = (
                     logger.debug if self._prefill_speed_priority else logger.warning
@@ -6226,8 +6235,10 @@ class Scheduler:
             n = min(n, limit)
 
         if state.tokens_processed == 0:
-            Scheduler._clear_cache(self)
-            Scheduler._announce_first_prefill_chunk(self, state.tokens_remaining, state.base_size, state.boundary_enabled, state.block_size, None)
+            # A packed row rides the head's forward, its flush and prefetch.
+            if guarded:
+                Scheduler._clear_cache(self)
+                Scheduler._announce_first_prefill_chunk(self, state.tokens_remaining, state.base_size, state.boundary_enabled, state.block_size, None)
             # Known horizon: size the QSA indexer once instead of doubling
             # mid-prefill (see _reserve_qsa_index_capacity).
             self._reserve_qsa_index_capacity(
@@ -6369,7 +6380,7 @@ class Scheduler:
             loop_label="chunked_step",
             kv_len=kv_len,
             requested_step=head.requested_step,
-            gathered_core=any(plan.gathered_core for plan in plans),
+            gathered_core=all(plan.gathered_core for plan in plans),
         )
         for plan in plans:
             if len(plans) > 1:
@@ -6576,7 +6587,7 @@ class Scheduler:
         request: "Request",
         state: _PrefillState,
         scheduled: "list[Request]",
-    ) -> int | None:
+    ) -> None:
         """Insert a fully-prefilled request into BatchGenerator.
 
         Handles the batch_generator.insert() call, uid bookkeeping, and moving
@@ -6623,7 +6634,7 @@ class Scheduler:
                     request.request_id,
                     vlm_mtp_uid,
                 )
-                return vlm_mtp_uid
+                return
 
         self._finalize_chunked_prefill_cache_for_insert(request, state.cache)
 
@@ -6660,6 +6671,9 @@ class Scheduler:
                 scheduled.append(request)
             except Exception:
                 _mtp_priming.release_uids(self.model, uids)
+                drafter = _block_drafter_for(self.model)
+                if drafter is not None:
+                    drafter.release(uids)
                 for inserted_uid in uids:
                     self._remove_uid_from_active_batch(inserted_uid)
                     _unregister_uid_row(self.model, inserted_uid)
@@ -6689,8 +6703,6 @@ class Scheduler:
                 request.num_prompt_tokens,
                 cache_info,
             )
-            return uid
-        return None
 
     def _packed_prefill_ready(self) -> bool:
         """Whether in-flight prefills of this model may share one forward."""
@@ -6703,7 +6715,11 @@ class Scheduler:
             self.config, "moe_offload_active", False
         ):
             return False
-        parts = (model, getattr(model, "_language_model", None))
+        parts = (
+            model,
+            getattr(model, "_language_model", None),
+            getattr(model, "_vlm_model", None),
+        )
         if any(
             getattr(part, flag, 0)
             for part in parts
@@ -6736,8 +6752,7 @@ class Scheduler:
         if not cap:
             return True
         row_min = self._packed_min_row_tokens or 1
-        grid = _CONTENDED_CHUNK_GRID
-        return cap >= -(-row_min // grid) * grid + row_min
+        return cap >= _ceil_to_contended_grid(row_min) + row_min
 
     def _packed_prefill_fits(self, plans: list[_PrefillChunkPlan]) -> bool:
         """Price a packed forward as one chunk at its longest row context."""
@@ -6745,17 +6760,16 @@ class Scheduler:
         kv_len = max(
             plan.state.base_size + plan.state.tokens_processed for plan in plans
         )
-        gathered_core = any(plan.gathered_core for plan in plans)
-        try:
-            allowed = self._adaptive_chunk_size(
-                total_tokens,
-                request_id=plans[0].state.request.request_id,
-                loop_label="packed_step",
-                kv_len=kv_len,
-                gathered_core=gathered_core,
-            )
-        except _PrefillEvictionNeeded:
-            return False
+        # Each row's mixer runs its own route, so one dense row prices it dense.
+        gathered_core = all(plan.gathered_core for plan in plans)
+        allowed = self._adaptive_chunk_size(
+            total_tokens,
+            request_id=plans[0].state.request.request_id,
+            loop_label="packed_step",
+            kv_len=kv_len,
+            gathered_core=gathered_core,
+            probe=True,
+        )
         if allowed < total_tokens:
             return False
         _, cap, _ = self._prefill_abort_description()
@@ -6784,6 +6798,8 @@ class Scheduler:
         _mtp_priming.activate_request(self.model, state.request.request_id)
         if state.tokens_remaining.shape[1] == 0:
             return []
+        if state.request.packed_prefill_excluded:
+            candidates = []
         companions = []
         for request in candidates:
             if len(companions) + 1 >= _PACKED_PREFILL_MAX_ROWS:
@@ -6792,6 +6808,7 @@ class Scheduler:
             if (
                 companion is not None
                 and companion.tokens_remaining.shape[1] > 0
+                and not request.packed_prefill_excluded
                 and request.request_id not in self._pending_abort_ids
             ):
                 companions.append(companion)
@@ -6802,8 +6819,9 @@ class Scheduler:
             rows = [state, *companions]
             grid = _CONTENDED_CHUNK_GRID
             # The head keeps the shortest packable grid chunk.
-            unit = -(-row_min // grid) * grid
-            floor = min(int(state.tokens_remaining.shape[1]), unit)
+            floor = min(
+                int(state.tokens_remaining.shape[1]), _ceil_to_contended_grid(row_min)
+            )
             budget = cap - floor
             for index in sorted(
                 range(len(rows)), key=lambda i: rows[i].tokens_remaining.shape[1]
@@ -6836,14 +6854,30 @@ class Scheduler:
             limit = min(budget, limits[index]) if cap else None
             if budget <= 0 or limit == 0:
                 continue
-            plan = self._plan_prefill_chunk(companion, limit=limit, guarded=False)
+            try:
+                plan = self._plan_prefill_chunk(companion, limit=limit, guarded=False)
+            except Exception:
+                # It raises again on its own turn, under its own request.
+                continue
             if plan.tokens < row_min or plan.tokens > budget:
                 continue
             plans.append(plan)
             budget -= plan.tokens
         while len(plans) > 1 and not self._packed_prefill_fits(plans):
             plans.pop()
+        if len(plans) == 1 and limits:
+            # Without companions the head runs its whole chunk.
+            plans[0] = self._plan_prefill_chunk(state)
         return plans
+
+    def _teardown_prefill_request(self, rid: str) -> None:
+        """Release every scheduler resource of an in-flight prefill."""
+        self._prefill_states.pop(rid, None)
+        self._release_paged_cache_for_request(rid)
+        self._drop_boundary_snapshots_for_request(rid)
+        self.requests.pop(rid, None)
+        self._clear_request_admission_bookkeeping(rid)
+        get_prefill_tracker().remove(rid)
 
     def _fail_packed_prefill(
         self,
@@ -6871,18 +6905,17 @@ class Scheduler:
         # Requeueing prepends, so walk backwards to keep FCFS order.
         for plan in reversed(plans):
             request = plan.state.request
-            rid = request.request_id
-            self._prefill_states.pop(rid, None)
-            self._release_paged_cache_for_request(rid)
-            self._drop_boundary_snapshots_for_request(rid)
-            self.requests.pop(rid, None)
-            self._clear_request_admission_bookkeeping(rid)
-            get_prefill_tracker().remove(rid)
+            request.packed_prefill_excluded = True
+            self._teardown_prefill_request(request.request_id)
+            if not memory_pressure:
+                # Packing is off for this model now; no retry budget is spent.
+                self._requeue_prefill_retry(request)
+                continue
             if self._requeue_or_fail_prefill(request, error, memory_pressure=True):
                 continue
             rejected.append(
                 RequestOutput(
-                    request_id=rid,
+                    request_id=request.request_id,
                     finished=True,
                     finish_reason="error",
                     error=str(error),
@@ -6898,7 +6931,7 @@ class Scheduler:
     ) -> None:
         """Insert a fully prefilled request into BatchGenerator."""
         rid = request.request_id
-        # Prefill complete — emit final boundary snapshot and insert.
+        # Prefill complete - emit final boundary snapshot and insert.
         self._prefill_states.pop(rid, None)
         self._emit_final_boundary_if_needed(state)
         Scheduler._clear_cache(self)
@@ -6947,7 +6980,6 @@ class Scheduler:
 
         pending_prefills = list(self.prefilling)
         still_prefilling: deque[Request] = deque()
-        packed_ids: set[str] = set()
         if Scheduler._packed_prefill_ready(
             self
         ) and Scheduler._packing_fits_contended_cap(self):
@@ -6971,11 +7003,6 @@ class Scheduler:
             # _do_abort_request() between steps — just skip it.
             if state is None:
                 continue
-            # Already advanced inside an earlier request's packed forward.
-            if rid in packed_ids:
-                still_prefilling.append(request)
-                continue
-
             if not self._prefill_gate_open():
                 still_prefilling.extendleft(reversed(pending_prefills[index:]))
                 break
@@ -6994,9 +7021,6 @@ class Scheduler:
                         state, pending_prefills[index + 1 :]
                     )
                     if len(plans) > 1:
-                        packed_ids.update(
-                            plan.state.request.request_id for plan in plans
-                        )
                         try:
                             done = self._run_prefill_chunks(plans)
                         except Exception as error:
@@ -7029,23 +7053,13 @@ class Scheduler:
                 break
             except PrefillMemoryExceededError as e:
                 logger.error("Chunked prefill capacity rejected for %s: %s", rid, e)
-                self._prefill_states.pop(rid, None)
-                self._release_paged_cache_for_request(rid)
-                self._drop_boundary_snapshots_for_request(rid)
-                self.requests.pop(rid, None)
-                self._clear_request_admission_bookkeeping(rid)
-                get_prefill_tracker().remove(rid)
+                self._teardown_prefill_request(rid)
                 Scheduler._clear_cache(self)
                 rejected.append(_prefill_memory_exception_output(rid, e))
                 continue
             except RuntimeError as e:
                 logger.error("Chunked prefill failed for %s: %s", rid, e)
-                self._prefill_states.pop(rid, None)
-                self._release_paged_cache_for_request(rid)
-                self._drop_boundary_snapshots_for_request(rid)
-                self.requests.pop(rid, None)
-                self._clear_request_admission_bookkeeping(rid)
-                get_prefill_tracker().remove(rid)
+                self._teardown_prefill_request(rid)
                 # Drop Metal cache pool buffers held by the aborted chunk's
                 # forward / mx.eval transients. Without this, enforcer keeps
                 # seeing the burst footprint until the next mx.clear_cache().
@@ -12417,9 +12431,11 @@ class Scheduler:
                 # it when short, so they can join other requests' forwards.
                 packed = (
                     vlm_embeds is None
+                    and not request.packed_prefill_excluded
                     and (self.config.chunked_prefill or force_chunk)
                     and Scheduler._packed_prefill_ready(self)
-                    and len(tokens_to_process) >= self._packed_min_row_tokens
+                    # The resumable path holds the last prompt token back.
+                    and len(tokens_to_process) > self._packed_min_row_tokens
                     and Scheduler._packing_fits_contended_cap(self)
                 )
                 if packed or (
@@ -13904,7 +13920,17 @@ class Scheduler:
 
         # Reclaim before requeue so the retry starts from a lower baseline.
         self._reclaim_prefill_headroom()
+        self._requeue_prefill_retry(request)
+        logger.warning(
+            "Requeued %s for prefill retry %d/%d after memory pressure.",
+            request.request_id,
+            request.prefill_oom_retries,
+            self._MAX_PREFILL_OOM_RETRIES,
+        )
+        return True
 
+    def _requeue_prefill_retry(self, request: "Request") -> None:
+        """Reset a torn-down prefill request and requeue it at the front."""
         # Clear any SpecPrefill RoPE patch tied to this request so the retry
         # re-scores cleanly.
         if self._specprefill_active_request_id == request.request_id:
@@ -13944,13 +13970,6 @@ class Scheduler:
         # EWMA, so it is strictly better-informed than this attempt.
         self.requests[request.request_id] = request
         self.waiting.appendleft(request)
-        logger.warning(
-            "Requeued %s for prefill retry %d/%d after memory pressure.",
-            request.request_id,
-            request.prefill_oom_retries,
-            self._MAX_PREFILL_OOM_RETRIES,
-        )
-        return True
 
     def _pause_for_prefill_eviction(
         self,

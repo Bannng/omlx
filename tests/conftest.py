@@ -51,6 +51,7 @@ _GPU_SERIAL_TEST_FILES = (
     "test_qwen35_*",
     "test_qwen4_*",
     "test_row_exact_qmv.py",
+    "test_scheduler_chunked_prefill.py",
     "test_sdpa*",
 )
 

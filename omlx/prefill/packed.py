@@ -328,17 +328,17 @@ def _cache_offset(cache: list[Any]) -> int:
 def _position_ids(model: Any, batch: PackedBatch) -> mx.array | None:
     if not getattr(model, "_uses_mrope", False):
         return None
-    starts = [_cache_offset(row.cache) + int(row.rope_delta) for row in batch.rows]
-    positions = mx.concatenate(
-        [
-            mx.arange(start, start + (end - begin), dtype=mx.int32)
-            for start, (begin, end) in zip(starts, batch.spans)
-        ]
-    )[None]
-    if model.model_type == "qwen4_exp":
-        # Text-only Qwen4 rows keep rank-two positions, as single-row chunks do.
-        return positions
-    return mx.broadcast_to(positions[None], (3, 1, batch.total_tokens))
+    # Each row gets the positions a single-row text chunk would.
+    rows = [
+        model._position_ids_from_starts(
+            mx.array([_cache_offset(row.cache) + int(row.rope_delta)], dtype=mx.int32),
+            1,
+            end - begin,
+            qwen4_text_prefill_positions=True,
+        )
+        for row, (begin, end) in zip(batch.rows, batch.spans)
+    ]
+    return mx.concatenate(rows, axis=-1)
 
 
 def run_packed_prefill(model: Any, rows: Sequence[PackedRow]) -> Any:

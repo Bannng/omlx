@@ -236,6 +236,7 @@ class Request:
     prefill_eviction_retries: int = (
         0  # Per-request prefill-headroom eviction phase counter
     )
+    packed_prefill_excluded: bool = False  # Retries alone after a failed pack
 
     # Request-scoped tool schemas used by protocol output parsers.
     tools: list[dict[str, Any]] | None = None

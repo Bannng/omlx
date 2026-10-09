@@ -14,13 +14,33 @@ from unittest.mock import MagicMock, patch
 
 import mlx.core as mx
 import pytest
+from mlx_lm.models import qwen3_5_moe
+from mlx_lm.models.cache import make_prompt_cache
+from mlx_vlm.models.qwen3_5 import config as qwen3_5_config
+from mlx_vlm.models.qwen3_5 import language as qwen3_5_language
 
+import omlx.scheduler as scheduler_module
 from omlx.exceptions import PrefillMemoryExceededError
+from omlx.models.vlm import VLMModelAdapter
+from omlx.patches import mlx_vlm_qwen4_exp_compat
+from omlx.patches.hy_v3 import apply_hy_v3_patch
+from omlx.patches.mlx_vlm_glm5_next_compat import (
+    apply_mlx_vlm_glm5_next_compat_patch,
+)
+from omlx.prefill.packed import (
+    PackedBatch,
+    PackedRow,
+    PackedRows,
+    install_packed_prefill,
+    packed_min_row_tokens,
+    run_packed_prefill,
+)
 from omlx.request import Request, RequestStatus, SamplingParams
 from omlx.scheduler import (
     PrefillEvictionRequest,
     Scheduler,
     SchedulerConfig,
+    _bind_text_prefill_rope_delta,
     _default_generation_stream,
     _PrefillAbortedError,
     _PrefillEvictionNeeded,
@@ -1604,9 +1624,7 @@ def test_external_prefill_announces_the_next_chunk_to_the_model():
 
 
 def _tiny_qwen3_5():
-    from mlx_vlm.models.qwen3_5 import config, language
-
-    text = config.TextConfig(
+    text = qwen3_5_config.TextConfig(
         model_type="qwen3_5_text",
         hidden_size=32,
         intermediate_size=64,
@@ -1629,15 +1647,13 @@ def _tiny_qwen3_5():
             "partial_rotary_factor": 1.0,
         },
     )
-    return language.LanguageModel(text), SimpleNamespace(
+    return qwen3_5_language.LanguageModel(text), SimpleNamespace(
         model_type="qwen3_5", text_config=text
     )
 
 
 def _tiny_qwen4_exp():
-    from omlx.patches import mlx_vlm_qwen4_exp_compat as compat
-
-    compat.apply_mlx_vlm_qwen4_exp_compat_patch()
+    mlx_vlm_qwen4_exp_compat.apply_mlx_vlm_qwen4_exp_compat_patch()
     from mlx_vlm.models import qwen4_exp
 
     text = qwen4_exp.TextConfig(
@@ -1711,10 +1727,6 @@ def _tiny_qwen4_exp():
 
 
 def _tiny_glm5_next():
-    from omlx.patches.mlx_vlm_glm5_next_compat import (
-        apply_mlx_vlm_glm5_next_compat_patch,
-    )
-
     apply_mlx_vlm_glm5_next_compat_patch()
     from mlx_vlm.models import glm5_next
     from mlx_vlm.models.glm5_next import language
@@ -1767,7 +1779,6 @@ def _tiny_glm5_next():
 
 
 def _tiny_mlx_lm_qwen3_5_moe():
-    from mlx_lm.models import qwen3_5_moe
 
     mx.random.seed(7)
     model = qwen3_5_moe.Model(
@@ -1804,8 +1815,6 @@ def _tiny_mlx_lm_qwen3_5_moe():
 
 
 def _tiny_hy_v3():
-    from omlx.patches.hy_v3 import apply_hy_v3_patch
-
     apply_hy_v3_patch()
     from mlx_lm.models import hy_v3
 
@@ -1834,7 +1843,6 @@ def _tiny_hy_v3():
 
 
 def _tiny_vlm_adapter(builder):
-    from omlx.models.vlm import VLMModelAdapter
 
     mx.random.seed(7)
     language_model, config = builder()
@@ -1845,7 +1853,6 @@ def _tiny_vlm_adapter(builder):
 
 
 def _single_chunk(model, cache, tokens):
-    from omlx.scheduler import _bind_text_prefill_rope_delta
 
     _bind_text_prefill_rope_delta(model, 0.0)
     kwargs = (
@@ -1856,7 +1863,6 @@ def _single_chunk(model, cache, tokens):
 
 
 def _cache_with_prefix(model, tokens):
-    from mlx_lm.models.cache import make_prompt_cache
 
     cache = make_prompt_cache(model)
     if tokens:
@@ -1902,11 +1908,6 @@ def _assert_same_cache(actual, expected):
 )
 def test_packed_prefill_matches_single_request_chunks(build):
     """Rows at different offsets and lengths match their own single forwards."""
-    from omlx.prefill.packed import (
-        PackedRow,
-        install_packed_prefill,
-        run_packed_prefill,
-    )
 
     model = build()
     assert install_packed_prefill(model)
@@ -1954,11 +1955,6 @@ def _hy_v3_row_op(name):
 )
 def test_packed_row_ops_run_once_per_row(monkeypatch, build):
     """Ops that pick kernels by row count see each row alone."""
-    from omlx.prefill.packed import (
-        PackedRow,
-        install_packed_prefill,
-        run_packed_prefill,
-    )
 
     model, op = build()
     call = op.__call__
@@ -1982,7 +1978,6 @@ def test_packed_row_ops_run_once_per_row(monkeypatch, build):
 
 
 def test_packed_min_row_tokens_keeps_exact_moe_rows_on_the_sorted_expert_gather():
-    from omlx.prefill.packed import packed_min_row_tokens
 
     def adapter(model_type, **args):
         language_model = SimpleNamespace(args=SimpleNamespace(**args))
@@ -2005,7 +2000,6 @@ def test_packed_min_row_tokens_keeps_exact_moe_rows_on_the_sorted_expert_gather(
 
 
 def test_packed_rows_reject_unregistered_cache_access():
-    from omlx.prefill.packed import PackedBatch, PackedRow, PackedRows
 
     batch = PackedBatch([PackedRow("a", mx.zeros((1, 2), dtype=mx.int32), [None])])
     rows = PackedRows(batch, [None])
@@ -2038,8 +2032,8 @@ def _make_packed_scheduler(step_size: int = 16):
     return scheduler
 
 
-def _stage_prefill(scheduler, request_id: str, n_tokens: int):
-    request = _make_request(request_id, n_tokens=n_tokens)
+def _stage_prefill(scheduler, request_id: str, n_tokens: int, request=None):
+    request = request or _make_request(request_id, n_tokens=n_tokens)
     request.prompt_token_ids = list(range(3, 3 + n_tokens))
     request.remaining_tokens = list(request.prompt_token_ids)
     scheduler.requests[request_id] = request
@@ -2053,7 +2047,6 @@ def _stage_prefill(scheduler, request_id: str, n_tokens: int):
 
 
 def _record_packed_forwards(monkeypatch):
-    import omlx.scheduler as scheduler_module
 
     forwards = []
     run = scheduler_module.run_packed_prefill
@@ -2104,7 +2097,6 @@ def test_packed_prefill_keeps_the_head_chunk_and_fills_the_forward(monkeypatch):
 
 def test_packed_forwards_leave_the_single_chunk_rate_alone(monkeypatch):
     """The contended cap prices single-row chunks, which run slower per token."""
-    import omlx.scheduler as scheduler_module
 
     monkeypatch.setattr(scheduler_module, "_CONTENDED_CHUNK_FLOOR", 1)
     scheduler = _make_packed_scheduler()
@@ -2212,7 +2204,6 @@ def test_late_request_joins_the_next_packed_forward(monkeypatch):
 
 
 def test_failed_packed_forward_requeues_rows_and_disables_packing(monkeypatch):
-    import omlx.scheduler as scheduler_module
 
     scheduler = _make_packed_scheduler()
 
@@ -2225,8 +2216,138 @@ def test_failed_packed_forward_requeues_rows_and_disables_packing(monkeypatch):
     assert _advance(scheduler) == ([], [])
     assert not scheduler.prefilling and not scheduler._prefill_states
     assert [r.request_id for r in scheduler.waiting] == ["a", "b"]
+    assert all(r.prefill_oom_retries == 0 for r in scheduler.waiting)
     assert scheduler._packed_prefill_disabled is not None
     assert not Scheduler._packed_prefill_ready(scheduler)
+
+
+def test_rows_of_a_pack_that_ran_out_of_memory_retry_alone(monkeypatch):
+
+    scheduler = _make_packed_scheduler()
+    run = scheduler_module.run_packed_prefill
+    packs = []
+
+    def fail_first_pack(model, rows):
+        packs.append([row.request_id for row in rows])
+        if len(packs) == 1:
+            raise MemoryError("pack does not fit")
+        return run(model, rows)
+
+    monkeypatch.setattr(scheduler_module, "run_packed_prefill", fail_first_pack)
+    sizes = {"a": 5, "b": 7}
+    requests = [_stage_prefill(scheduler, rid, n)[0] for rid, n in sizes.items()]
+    assert _advance(scheduler) == ([], [])
+    assert list(scheduler.waiting) == requests
+    # A memory failure keeps packing for other requests.
+    assert Scheduler._packed_prefill_ready(scheduler)
+    scheduler.waiting.clear()
+    states = [
+        _stage_prefill(scheduler, r.request_id, sizes[r.request_id], request=r)[1]
+        for r in requests
+    ]
+    assert _advance(scheduler) == (["a", "b"], [])
+    assert packs == [["a", "b"]]
+    assert [state.tokens_processed for state in states] == [4, 6]
+
+
+def test_rows_of_a_pack_out_of_memory_retries_fail_cleanly(monkeypatch):
+    scheduler = _make_packed_scheduler()
+
+    def fail(model, rows):
+        raise MemoryError("pack does not fit")
+
+    monkeypatch.setattr(scheduler_module, "run_packed_prefill", fail)
+    for request_id, n_tokens in (("a", 5), ("b", 7)):
+        request, _ = _stage_prefill(scheduler, request_id, n_tokens)
+        request.prefill_oom_retries = scheduler._MAX_PREFILL_OOM_RETRIES
+    scheduled, rejected = _advance(scheduler)
+    assert scheduled == [] and not scheduler.waiting
+    assert sorted(output.request_id for output in rejected) == ["a", "b"]
+    assert {output.finish_reason for output in rejected} == {"error"}
+
+
+@pytest.mark.parametrize(
+    "routes, priced_gathered", [((True, True), True), ((True, False), False)]
+)
+def test_packed_forward_with_a_dense_row_is_priced_dense(
+    monkeypatch, routes, priced_gathered
+):
+    scheduler = _make_packed_scheduler()
+    plans = []
+    for request_id, gathered in zip(("a", "b"), routes):
+        _, state = _stage_prefill(scheduler, request_id, 9)
+        plan = scheduler._plan_prefill_chunk(state, guarded=False)
+        plan.gathered_core = gathered
+        plans.append(plan)
+    priced = []
+
+    def bound(self, n_tokens, kv_len, *, gathered_core=False):
+        priced.append(gathered_core)
+        return 0
+
+    monkeypatch.setattr(Scheduler, "_adaptive_chunk_size", lambda self, n, **_: n)
+    monkeypatch.setattr(
+        Scheduler, "_prefill_abort_description", lambda self: (None, 1 << 40, None)
+    )
+    monkeypatch.setattr(Scheduler, "_current_usage_bytes", lambda self: 0)
+    monkeypatch.setattr(Scheduler, "_admission_transient_bound", bound)
+    assert scheduler._packed_prefill_fits(plans)
+    assert priced == [priced_gathered]
+
+
+def test_a_companion_that_fails_to_plan_leaves_the_head_alone(monkeypatch):
+    scheduler = _make_packed_scheduler()
+    forwards = _record_packed_forwards(monkeypatch)
+    reserve = Scheduler._reserve_prefill_capacity
+
+    def fail_for_b(self, cache, tokens, request_id):
+        if request_id == "b":
+            raise RuntimeError("cannot reserve b")
+        return reserve(self, cache, tokens, request_id)
+
+    monkeypatch.setattr(Scheduler, "_reserve_prefill_capacity", fail_for_b)
+    _stage_prefill(scheduler, "a", 9)
+    _stage_prefill(scheduler, "b", 7)
+    scheduled, rejected = _advance(scheduler)
+    # b's error surfaces on its own turn; a still prefills.
+    assert scheduled == ["a"]
+    assert [output.request_id for output in rejected] == ["b"]
+    assert forwards == []
+
+
+def test_contended_head_keeps_its_chunk_when_its_companions_drop_out(monkeypatch):
+    scheduler = _make_packed_scheduler(step_size=512)
+    forwards = _record_packed_forwards(monkeypatch)
+    monkeypatch.setattr(Scheduler, "_contended_prefill_cap", lambda self: 192)
+    monkeypatch.setattr(Scheduler, "_packed_prefill_fits", lambda self, plans: False)
+    _, a_state = _stage_prefill(scheduler, "a", 301)
+    _stage_prefill(scheduler, "b", 41)
+    _advance(scheduler)
+    assert forwards == []
+    assert a_state.tokens_processed == 192
+
+
+def test_ane_prefill_on_the_wrapped_vlm_model_disables_packing():
+    scheduler = _make_packed_scheduler()
+    assert Scheduler._packed_prefill_ready(scheduler)
+    scheduler.model._vlm_model._omlx_ane_mlp_prefill_count = 1
+    assert not Scheduler._packed_prefill_ready(scheduler)
+
+
+def test_insert_rollback_releases_drafter_rows(monkeypatch):
+    scheduler = _make_packed_scheduler()
+    drafter = MagicMock()
+    monkeypatch.setattr(scheduler_module, "_block_drafter_for", lambda model: drafter)
+    monkeypatch.setattr(
+        scheduler_module,
+        "_mark_text_positions",
+        MagicMock(side_effect=RuntimeError("positions")),
+    )
+    request, state = _stage_prefill(scheduler, "a", 5)
+    state.tokens_remaining = state.tokens_remaining[:, :0]
+    with pytest.raises(RuntimeError, match="positions"):
+        scheduler._insert_prefilled_request(request, state, [])
+    drafter.release.assert_called_once_with([42])
 
 
 def test_packed_prefill_drops_rows_that_do_not_fit(monkeypatch):
@@ -2319,19 +2440,23 @@ def test_packed_rows_emit_their_own_boundary_snapshots(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "chunked, contended, min_row, cap_fits, packed",
+    "chunked, contended, min_row, cap_fits, excluded, packed",
     [
-        (True, False, 1, True, True),
+        (True, False, 1, True, False, True),
         # Decode fairness chunks prompts under contention even when chunked
         # prefill is off, so those prompts pack too.
-        (False, True, 1, True, True),
-        (False, False, 1, True, False),
-        (True, False, 64, True, False),
-        (True, False, 1, False, False),
+        (False, True, 1, True, False, True),
+        (False, False, 1, True, False, False),
+        (True, False, 64, True, False, False),
+        # The resumable path holds the last token back: 2 tokens < 3.
+        (True, False, 3, True, False, False),
+        (True, False, 1, False, False, False),
+        # A retry after a failed pack runs alone.
+        (True, False, 1, True, True, False),
     ],
 )
 def test_schedule_waiting_admits_text_prompts_for_packed_prefill(
-    monkeypatch, chunked, contended, min_row, cap_fits, packed
+    monkeypatch, chunked, contended, min_row, cap_fits, excluded, packed
 ):
     sched = _make_scheduler(chunked_prefill=chunked, step_size=4)
     sched._packed_min_row_tokens = min_row
@@ -2339,6 +2464,7 @@ def test_schedule_waiting_admits_text_prompts_for_packed_prefill(
     monkeypatch.setattr(Scheduler, "_decode_contention", lambda self: contended)
     monkeypatch.setattr(Scheduler, "_packing_fits_contended_cap", lambda self: cap_fits)
     req = _make_request("short", n_tokens=3)
+    req.packed_prefill_excluded = excluded
     sched.add_request(req)
     state = _make_prefill_state(sched, req, 2)
     aborted = _PrefillAbortedError([], 0)
@@ -2356,7 +2482,6 @@ def test_schedule_waiting_admits_text_prompts_for_packed_prefill(
 
 
 def test_packed_rows_activate_their_own_priming_slot_for_tail_snapshots(monkeypatch):
-    import omlx.scheduler as scheduler_module
 
     scheduler = _make_packed_scheduler()
     _record_packed_forwards(monkeypatch)
