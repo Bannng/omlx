@@ -24,7 +24,7 @@ test('range and exact model are encoded; unloaded models and intensity remain us
     await view.load();
     assert.equal(urls[1], '/admin/api/usage?range=month&model=canonical+model');
     assert.equal(view.peak, 120);
-    assert.equal(view.shade(0), 'rgba(128, 128, 128, 0.12)');
+    assert.equal(view.shade(0), 'rgb(var(--palette-mid-gray) / 0.12)');
     assert.equal(view.speed(null), '—');
 });
 
