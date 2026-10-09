@@ -133,7 +133,12 @@ class MLXEmbeddingModel:
         >>> print(len(output.embeddings))  # 2
     """
 
-    def __init__(self, model_name: str, trust_remote_code: bool = False):
+    def __init__(
+        self,
+        model_name: str,
+        trust_remote_code: bool = False,
+        audio_enabled: bool = False,
+    ):
         """
         Initialize the MLX embedding model.
 
@@ -141,9 +146,12 @@ class MLXEmbeddingModel:
             model_name: HuggingFace model name or local path
             trust_remote_code: Allow execution of custom Python shipped inside
                 the model repository. Off by default for security (issue #926).
+            audio_enabled: Load the audio tower of models that have one, so
+                audio items are accepted. Off by default to save memory.
         """
         self.model_name = model_name
         self.trust_remote_code = trust_remote_code
+        self.audio_enabled = audio_enabled
 
         self.model = None
         self.processor = None
@@ -412,6 +420,10 @@ class MLXEmbeddingModel:
 
         logger.info(f"Loading embedding model via mlx-vlm: {self.model_name}")
         config = load_config(model_path)
+        # The audio tower is resident even for text-only requests, so it loads
+        # only when the model's embedding_audio_enabled setting asks for it.
+        if not self.audio_enabled:
+            config["audio_config"] = None
         model = load_embedding_model(model_path, config=config)
         processor = load_processor(model_path, add_detokenizer=False)
         model.max_input_length = context_length
@@ -933,8 +945,14 @@ class MLXEmbeddingModel:
         has_image_inputs = any("image" in item for item in normalized_inputs)
         has_audio_inputs = any("audio" in item for item in normalized_inputs)
         if has_audio_inputs and not self._supports_audio:
+            hint = (
+                " (enable embedding_audio_enabled in its model settings)"
+                if self._media_processor is not None and not self.audio_enabled
+                else ""
+            )
             raise ValueError(
-                f"Embedding model '{self.model_name}' does not support audio inputs"
+                f"Embedding model '{self.model_name}' does not support audio "
+                f"inputs{hint}"
             )
 
         processor = self.processor

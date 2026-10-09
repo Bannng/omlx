@@ -875,7 +875,9 @@ class TestEmbeddingEngine:
 
             asyncio.run(engine.start())
 
-            MockModel.assert_called_once_with("test-model", trust_remote_code=False)
+            MockModel.assert_called_once_with(
+                "test-model", trust_remote_code=False, audio_enabled=False
+            )
             mock_model.load.assert_called_once()
 
             asyncio.run(engine.stop())
@@ -2289,12 +2291,12 @@ class TestMlxVlmEmbeddingGemma2:
         save_file(weights, str(tmp_path / "model.safetensors"))
         return tmp_path
 
-    def _load(self, model_dir):
+    def _load(self, model_dir, audio_enabled=False):
         tokenizer = self.MockTokenizer()
         processor = MagicMock()
         processor.tokenizer = tokenizer
         processor.feature_extractor.sampling_rate = 16000
-        model = MLXEmbeddingModel(str(model_dir))
+        model = MLXEmbeddingModel(str(model_dir), audio_enabled=audio_enabled)
         with patch(
             "omlx.models.embedding.load_processor", return_value=processor
         ) as load_processor:
@@ -2308,7 +2310,7 @@ class TestMlxVlmEmbeddingGemma2:
 
         output = model.embed(texts, max_length=262144)
 
-        assert model.model.audio_tower is not None
+        assert model.model.audio_tower is None
         assert tokenizer.max_lengths[-1] == 8192
         inputs = tokenizer(texts, return_tensors="mlx", max_length=8192)
         expected = model.model(**inputs).text_embeds
@@ -2347,7 +2349,8 @@ class TestMlxVlmEmbeddingGemma2:
         )
 
     def test_audio_item_reaches_processor_as_waveform(self, model_dir):
-        model, _, processor = self._load(model_dir)
+        model, _, processor = self._load(model_dir, audio_enabled=True)
+        assert model.model.audio_tower is not None
         prepared = {
             "input_ids": mx.array([[2, 5, 6, 1]]),
             "attention_mask": mx.array([[1, 1, 1, 1]]),
@@ -2370,16 +2373,26 @@ class TestMlxVlmEmbeddingGemma2:
             np.array(output.embeddings), np.array(expected), atol=1e-6
         )
 
-    def test_audio_rejected_without_audio_tower(self, model_dir):
+    def test_audio_rejected_until_setting_enables_tower(self, model_dir):
         model, _, processor = self._load(model_dir)
-        model._supports_audio = False
 
-        with pytest.raises(ValueError, match="does not support audio inputs"):
+        with pytest.raises(ValueError, match="enable embedding_audio_enabled"):
             model.embed([{"audio": AUDIO_DATA_URI}])
         processor.apply_chat_template.assert_not_called()
 
+    def test_engine_passes_audio_setting_to_model(self, model_dir):
+        from omlx.engine.embedding import EmbeddingEngine
+
+        engine = EmbeddingEngine(str(model_dir), audio_enabled=True)
+        with patch(
+            "omlx.models.embedding.load_processor", return_value=MagicMock()
+        ):
+            asyncio.run(engine.start())
+        assert engine._model.audio_enabled is True
+        assert engine._model.model.audio_tower is not None
+
     def test_malformed_audio_is_request_error(self, model_dir):
-        model, _, processor = self._load(model_dir)
+        model, _, processor = self._load(model_dir, audio_enabled=True)
 
         with pytest.raises(InvalidRequestError):
             model.embed([{"audio": "data:audio/wav;base64,not-base64!"}])

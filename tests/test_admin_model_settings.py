@@ -95,6 +95,21 @@ async def test_load_time_setting_change_clears_cached_failure():
 
 
 @pytest.mark.asyncio
+async def test_embedding_audio_setting_is_load_time():
+    pool, entry = _failed_pool()
+    settings = ModelSettings()
+
+    await _update_settings(
+        pool,
+        settings,
+        admin_routes.ModelSettingsRequest(embedding_audio_enabled=True),
+    )
+
+    assert settings.embedding_audio_enabled is True
+    assert entry.load_failed is False
+
+
+@pytest.mark.asyncio
 async def test_unchanged_load_time_setting_keeps_cached_failure():
     pool, entry = _failed_pool()
     settings = ModelSettings(trust_remote_code=False)
