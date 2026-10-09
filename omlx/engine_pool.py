@@ -1060,6 +1060,11 @@ class EnginePool:
         # Security/load gates.
         add("trust_remote_code", bool(data.get("trust_remote_code", False)))
         add("index_cache_freq", normalized_index_cache_freq())
+        # Embedding audio tower residency is decided at load.
+        add(
+            "embedding_audio_enabled",
+            bool(data.get("embedding_audio_enabled", False)),
+        )
 
         # Load-time model variants. Dependent fields only matter when their
         # feature is active; stale draft paths or tuning defaults must not
@@ -3706,6 +3711,9 @@ class EnginePool:
                         model_name=entry.model_path,
                         trust_remote_code=trc,
                         scheduler_config=self._scheduler_config,
+                        audio_enabled=bool(
+                            getattr(model_settings, "embedding_audio_enabled", False)
+                        ),
                     )
                 elif effective_type == "reranker":
                     engine = RerankerEngine(
