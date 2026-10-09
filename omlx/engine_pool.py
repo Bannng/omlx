@@ -1065,6 +1065,7 @@ class EnginePool:
             "embedding_audio_enabled",
             bool(data.get("embedding_audio_enabled", False)),
         )
+        add("embedding_audio_max_seconds", data.get("embedding_audio_max_seconds"))
 
         # Load-time model variants. Dependent fields only matter when their
         # feature is active; stale draft paths or tuning defaults must not
@@ -3713,6 +3714,9 @@ class EnginePool:
                         scheduler_config=self._scheduler_config,
                         audio_enabled=bool(
                             getattr(model_settings, "embedding_audio_enabled", False)
+                        ),
+                        audio_max_seconds=getattr(
+                            model_settings, "embedding_audio_max_seconds", None
                         ),
                     )
                 elif effective_type == "reranker":

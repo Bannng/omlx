@@ -876,7 +876,10 @@ class TestEmbeddingEngine:
             asyncio.run(engine.start())
 
             MockModel.assert_called_once_with(
-                "test-model", trust_remote_code=False, audio_enabled=False
+                "test-model",
+                trust_remote_code=False,
+                audio_enabled=False,
+                audio_max_seconds=None,
             )
             mock_model.load.assert_called_once()
 
@@ -2291,12 +2294,16 @@ class TestMlxVlmEmbeddingGemma2:
         save_file(weights, str(tmp_path / "model.safetensors"))
         return tmp_path
 
-    def _load(self, model_dir, audio_enabled=False):
+    def _load(self, model_dir, audio_enabled=False, audio_max_seconds=None):
         tokenizer = self.MockTokenizer()
         processor = MagicMock()
         processor.tokenizer = tokenizer
         processor.feature_extractor.sampling_rate = 16000
-        model = MLXEmbeddingModel(str(model_dir), audio_enabled=audio_enabled)
+        model = MLXEmbeddingModel(
+            str(model_dir),
+            audio_enabled=audio_enabled,
+            audio_max_seconds=audio_max_seconds,
+        )
         with patch(
             "omlx.models.embedding.load_processor", return_value=processor
         ) as load_processor:
@@ -2383,12 +2390,15 @@ class TestMlxVlmEmbeddingGemma2:
     def test_engine_passes_audio_setting_to_model(self, model_dir):
         from omlx.engine.embedding import EmbeddingEngine
 
-        engine = EmbeddingEngine(str(model_dir), audio_enabled=True)
+        engine = EmbeddingEngine(
+            str(model_dir), audio_enabled=True, audio_max_seconds=90
+        )
         with patch(
             "omlx.models.embedding.load_processor", return_value=MagicMock()
         ):
             asyncio.run(engine.start())
         assert engine._model.audio_enabled is True
+        assert engine._model.audio_max_seconds == 90
         assert engine._model.model.audio_tower is not None
 
     def test_malformed_audio_is_request_error(self, model_dir):
@@ -2397,3 +2407,38 @@ class TestMlxVlmEmbeddingGemma2:
         with pytest.raises(InvalidRequestError):
             model.embed([{"audio": "data:audio/wav;base64,not-base64!"}])
         processor.apply_chat_template.assert_not_called()
+
+    def _prepared(self, processor):
+        processor.apply_chat_template.return_value = {
+            "input_ids": mx.array([[2, 5, 6, 1]]),
+            "attention_mask": mx.array([[1, 1, 1, 1]]),
+        }
+
+    def test_audio_length_setting_reaches_feature_extractor(self, model_dir):
+        model, _, processor = self._load(
+            model_dir, audio_enabled=True, audio_max_seconds=120
+        )
+        self._prepared(processor)
+
+        model.embed([{"audio": AUDIO_DATA_URI}])
+
+        kwargs = processor.apply_chat_template.call_args.kwargs
+        assert kwargs["audio_kwargs"] == {"max_length": 120 * 16000}
+
+    def test_audio_length_default_keeps_processor_default(self, model_dir):
+        model, _, processor = self._load(model_dir, audio_enabled=True)
+        self._prepared(processor)
+
+        model.embed([{"audio": AUDIO_DATA_URI}])
+
+        assert "audio_kwargs" not in processor.apply_chat_template.call_args.kwargs
+
+    def test_audio_length_not_sent_for_image_batches(self, model_dir):
+        model, _, processor = self._load(
+            model_dir, audio_enabled=True, audio_max_seconds=120
+        )
+        self._prepared(processor)
+
+        model.embed([{"text": "a cat", "image": IMAGE_DATA_URI}])
+
+        assert "audio_kwargs" not in processor.apply_chat_template.call_args.kwargs

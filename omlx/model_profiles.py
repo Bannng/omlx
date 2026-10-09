@@ -118,6 +118,7 @@ EXCLUDED_FROM_PROFILES = frozenset(
         "trust_remote_code",
         # Memory residency of an embedding model's audio tower; explicit per model.
         "embedding_audio_enabled",
+        "embedding_audio_max_seconds",
     }
 )
 

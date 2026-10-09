@@ -110,6 +110,26 @@ async def test_embedding_audio_setting_is_load_time():
 
 
 @pytest.mark.asyncio
+async def test_embedding_audio_length_setting_is_load_time():
+    pool, entry = _failed_pool()
+    settings = ModelSettings()
+
+    await _update_settings(
+        pool,
+        settings,
+        admin_routes.ModelSettingsRequest(embedding_audio_max_seconds=120),
+    )
+
+    assert settings.embedding_audio_max_seconds == 120
+    assert entry.load_failed is False
+
+
+def test_embedding_audio_length_must_be_positive():
+    with pytest.raises(ValueError):
+        admin_routes.ModelSettingsRequest(embedding_audio_max_seconds=0)
+
+
+@pytest.mark.asyncio
 async def test_unchanged_load_time_setting_keeps_cached_failure():
     pool, entry = _failed_pool()
     settings = ModelSettings(trust_remote_code=False)

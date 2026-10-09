@@ -418,6 +418,7 @@ class ModelSettingsRequest(BaseModel):
     # Security: per-model opt-in for trust_remote_code (issue #926)
     trust_remote_code: bool | None = None
     embedding_audio_enabled: bool | None = None
+    embedding_audio_max_seconds: float | None = Field(default=None, gt=0)
 
     @field_validator("turboquant_kv_bits")
     @classmethod
@@ -3258,6 +3259,10 @@ async def update_model_settings(
         current_settings.embedding_audio_enabled = bool(
             request.embedding_audio_enabled
         )
+    if "embedding_audio_max_seconds" in sent:
+        current_settings.embedding_audio_max_seconds = (
+            request.embedding_audio_max_seconds
+        )
 
     if is_diffusion_model:
         _sanitize_diffusion_model_settings(current_settings)
@@ -3350,8 +3355,9 @@ async def update_model_settings(
         # trust_remote_code is plumbed at model load time; toggling it on
         # an already-loaded engine has no effect until reload.
         or "trust_remote_code" in sent
-        # So is the embedding audio tower.
+        # So are the embedding audio tower and its audio length.
         or "embedding_audio_enabled" in sent
+        or "embedding_audio_max_seconds" in sent
     )
     auto_unloaded = False
     auto_reloaded = False
