@@ -76,11 +76,20 @@ class EmbeddingOutput:
 class _ChatTemplateEmbeddingInputs:
     """Build text, image, and audio embedding inputs with an mlx-vlm processor."""
 
-    def __init__(self, processor, max_length: int):
+    def __init__(
+        self, processor, max_length: int, audio_max_seconds: Optional[float] = None
+    ):
         self._processor = processor
         self._max_length = max_length
         feature_extractor = getattr(processor, "feature_extractor", None)
         self._sampling_rate = getattr(feature_extractor, "sampling_rate", 16000)
+        # The feature extractor cuts audio at its call-time max_length default
+        # (Gemma 4: 30 s); only the call can raise it.
+        self._audio_kwargs = (
+            {"max_length": int(audio_max_seconds * self._sampling_rate)}
+            if audio_max_seconds and audio_max_seconds > 0
+            else {}
+        )
 
     def prepare_embedding_inputs(self, inputs, return_tensors: str = "mlx"):
         conversations = []
@@ -96,11 +105,17 @@ class _ChatTemplateEmbeddingInputs:
                 waveform = load_audio(io.BytesIO(item["audio"]), sr=self._sampling_rate)
                 content.append({"type": "audio", "audio": waveform})
             conversations.append([{"role": "user", "content": content}])
+        has_audio = any(item.get("audio") for item in inputs)
         batch = self._processor.apply_chat_template(
             conversations,
             tokenize=True,
             return_dict=True,
             return_tensors=return_tensors,
+            **(
+                {"audio_kwargs": self._audio_kwargs}
+                if has_audio and self._audio_kwargs
+                else {}
+            ),
         )
         # Truncation can cut media placeholders, so reject long inputs instead.
         length = batch["input_ids"].shape[1]
@@ -138,6 +153,7 @@ class MLXEmbeddingModel:
         model_name: str,
         trust_remote_code: bool = False,
         audio_enabled: bool = False,
+        audio_max_seconds: Optional[float] = None,
     ):
         """
         Initialize the MLX embedding model.
@@ -148,10 +164,13 @@ class MLXEmbeddingModel:
                 the model repository. Off by default for security (issue #926).
             audio_enabled: Load the audio tower of models that have one, so
                 audio items are accepted. Off by default to save memory.
+            audio_max_seconds: Longest audio item read before the waveform is
+                cut. None keeps the processor default (Gemma 4 audio: 30 s).
         """
         self.model_name = model_name
         self.trust_remote_code = trust_remote_code
         self.audio_enabled = audio_enabled
+        self.audio_max_seconds = audio_max_seconds
 
         self.model = None
         self.processor = None
@@ -433,7 +452,7 @@ class MLXEmbeddingModel:
         # takes images as its first positional argument.
         self.processor = processor.tokenizer
         self._media_processor = _ChatTemplateEmbeddingInputs(
-            processor, context_length
+            processor, context_length, self.audio_max_seconds
         )
         self._supports_audio = getattr(model, "audio_tower", None) is not None
         self._hidden_size = model.config.text_config.embedding_dim
