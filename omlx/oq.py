@@ -5688,8 +5688,62 @@ def _pack_affine_codes(w, scales, biases, group_size: int, bits: int):
     return packed.reshape(packed_shape)
 
 
+_LSQ_ROUNDS = 5
+
+
+def _weighted_lsq_refit(grouped, imp, scales, biases, bits, dtype):
+    """Refit each group's scale and bias by weighted least squares.
+
+    Rounding alternates with the closed-form fit of ``v ~ s * c + b`` for the
+    current codes, from the given parameters and from symmetric clipping
+    starts. Errors use the stored precision of scale and bias, and a group
+    keeps its parameters unless the weighted error drops.
+    """
+    n_bins = mx.array((1 << bits) - 1, mx.float32)
+    tiny = mx.array(1e-7, mx.float32)
+
+    def stored(x):
+        return x.astype(dtype).astype(mx.float32)
+
+    def fit(s, b):
+        codes = mx.clip(mx.round((grouped - b) / s), 0, n_bins)
+        err = mx.sum(imp * (grouped - (codes * s + b)) ** 2, axis=-1, keepdims=True)
+        return codes, err
+
+    total = mx.sum(imp, axis=-1, keepdims=True)
+    sum_v = mx.sum(imp * grouped, axis=-1, keepdims=True)
+    best_s, best_b = stored(scales), stored(biases)
+    _, best_err = fit(best_s, best_b)
+    w_min = mx.min(grouped, axis=-1, keepdims=True)
+    w_max = mx.max(grouped, axis=-1, keepdims=True)
+    starts = [(best_s, best_b)]
+    for factor in (0.55, 0.65, 0.75, 0.85, 0.95, 1.05, 1.15):
+        s = mx.maximum((w_max - w_min) * factor / n_bins, tiny)
+        starts.append((s, (w_max + w_min) * 0.5 - n_bins * 0.5 * s))
+    for s, b in starts:
+        s, b = stored(s), stored(b)
+        for _ in range(_LSQ_ROUNDS):
+            codes, err = fit(s, b)
+            take = err < best_err
+            best_err = mx.where(take, err, best_err)
+            best_s = mx.where(take, s, best_s)
+            best_b = mx.where(take, b, best_b)
+            sum_c = mx.sum(imp * codes, axis=-1, keepdims=True)
+            sum_cc = mx.sum(imp * codes * codes, axis=-1, keepdims=True)
+            sum_cv = mx.sum(imp * codes * grouped, axis=-1, keepdims=True)
+            denom = sum_cc - sum_c * sum_c / total
+            safe = mx.where(denom > 0, denom, mx.array(1.0, mx.float32))
+            new_s = (sum_cv - sum_c * sum_v / total) / safe
+            ok = (denom > 0) & (mx.abs(new_s) > tiny)
+            new_b = (sum_v - new_s * sum_c) / total
+            s = stored(mx.where(ok, new_s, s))
+            b = stored(mx.where(ok, new_b, b))
+        mx.eval(best_s, best_b, best_err)
+    return best_s, best_b
+
+
 def _weighted_affine_quantize(w, group_size: int, bits: int, importance):
-    """Quantize with a small imatrix-weighted clipping search.
+    """Quantize with an imatrix-weighted clipping search and least-squares refit.
 
     The output layout intentionally matches ``mx.quantize(..., mode="affine")``.
     """
@@ -5742,6 +5796,10 @@ def _weighted_affine_quantize(w, group_size: int, bits: int, importance):
             best_err = mx.where(take, err, best_err)
             best_scales = mx.where(take, scales, best_scales)
             best_biases = mx.where(take, biases, best_biases)
+
+    best_scales, best_biases = _weighted_lsq_refit(
+        grouped_f, imp, best_scales, best_biases, bits, w.dtype
+    )
 
     packed = _pack_affine_codes(
         grouped_f.reshape(orig), best_scales, best_biases, group_size, bits

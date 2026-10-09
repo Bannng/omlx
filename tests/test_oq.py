@@ -28,6 +28,7 @@ from omlx.oq import (
     OQ_LEVELS,
     OQImatrixCollector,
     OQImatrixEntry,
+    _affine_minmax_params,
     _affine_perturb_group_size,
     _bpw_targets_for_level,
     _build_proxy_for_sensitivity,
@@ -72,6 +73,7 @@ from omlx.oq import (
     _TrackedTensor,
     _validate_oq_dtype_for_model,
     _uses_minimax_mxfp8_scale_inv_source,
+    _weighted_lsq_refit,
     estimate_bpw_and_size,
     estimate_memory,
     make_predicate,
@@ -2343,6 +2345,26 @@ class TestQuantizeChunked:
         weighted_err = mx.sum(((w - y_weighted) ** 2) * imp)
         mx.eval(ref_err, weighted_err)
         assert weighted_err.item() < ref_err.item()
+
+    @pytest.mark.parametrize("bits", [2, 3, 4, 8])
+    def test_lsq_refit_never_raises_stored_weighted_error(self, bits):
+        mx.random.seed(0)
+        grouped = mx.random.normal((32, 4, 64)) * mx.exp(mx.random.normal((32, 4, 1)))
+        imp = mx.broadcast_to(mx.exp(mx.random.normal((64,))), grouped.shape)
+        n_bins = (1 << bits) - 1
+
+        def stored_error(scales, biases):
+            s = scales.astype(mx.bfloat16).astype(mx.float32)
+            b = biases.astype(mx.bfloat16).astype(mx.float32)
+            codes = mx.clip(mx.round((grouped - b) / s), 0, n_bins)
+            return mx.sum(imp * (grouped - (codes * s + b)) ** 2, axis=-1)
+
+        scales, biases = _affine_minmax_params(grouped, bits)
+        refit = _weighted_lsq_refit(grouped, imp, scales, biases, bits, mx.bfloat16)
+        before, after = stored_error(scales, biases), stored_error(*refit)
+
+        assert mx.all(after <= before).item()
+        assert mx.sum(after).item() < mx.sum(before).item()
 
     def test_weighted_3d_expert_importance_chunked(self, monkeypatch):
         monkeypatch.setattr("omlx.oq._QUANTIZE_CHUNK_BYTES", 128)
