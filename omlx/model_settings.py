@@ -357,6 +357,9 @@ class ModelSettings:
     )
     thinking_budget_enabled: bool = False
     thinking_budget_tokens: Optional[int] = None
+    thinking_budget_message: Optional[str] = (
+        None  # Text forced before the close-think tag when the budget runs out
+    )
     reasoning_parser: Optional[str] = (
         None  # xgrammar builtin name: "qwen", "harmony", "llama", etc.
     )

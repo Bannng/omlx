@@ -385,6 +385,28 @@ class TestParserBackedThinkingBudgetWiring:
         assert len(budget_processors) == 1
         assert budget_processors[0]._think_end_ids == [101]
 
+    def test_budget_message_is_forced_before_close_marker(self):
+        factory = OutputParserFactory(
+            kind="gemma4",
+            create_session=MagicMock(),
+            thinking_end_text="<channel|>",
+        )
+        scheduler = self._make_scheduler(
+            factory, {"<channel|>": [101], "\n\nWrap up now.": [7, 8]}
+        )
+        scheduler._resolve_think_close_pattern = MagicMock(return_value=([10], [11]))
+        scheduler._thinking_budget_message = "Wrap up now."
+        request = self._make_request()
+
+        _, processors = scheduler._build_sampler_and_processors(
+            request.sampling_params, request
+        )
+
+        budget_processors = [
+            p for p in processors if isinstance(p, ThinkingBudgetProcessor)
+        ]
+        assert budget_processors[0]._force_sequence == [7, 8, 10, 101, 11]
+
     def test_parser_marker_ignores_none_tokenizer_think_end(self):
         factory = OutputParserFactory(
             kind="gemma4",

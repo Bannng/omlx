@@ -725,6 +725,9 @@ class BatchedEngine(BaseEngine):
         # TurboQuant KV cache: propagate bits to scheduler
         scheduler = self._engine.engine.scheduler
         scheduler.moe_offload_stats = offload_stats
+        scheduler._thinking_budget_message = getattr(
+            self._model_settings, "thinking_budget_message", None
+        )
         scheduler.moe_offload_release = offload_release
         scheduler.moe_offload_restore = offload_restore
         if ane_prefill_sequence_length:

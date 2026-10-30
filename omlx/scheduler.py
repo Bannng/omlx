@@ -2027,6 +2027,9 @@ class Scheduler:
         # TurboQuant KV cache (set by engine if model_settings has it enabled)
         self._turboquant_kv_bits: float | None = None
         self._turboquant_skip_last: bool = True
+        # Text forced before the close-think tag when a thinking budget runs out
+        # (set by engine from model_settings.thinking_budget_message)
+        self._thinking_budget_message: str | None = None
         # Memoized MLA-architecture detection (see _model_uses_mla / #1613).
         self._mla_model: bool | None = None
         self._mla_latent_model: bool | None = None
@@ -7515,6 +7518,11 @@ class Scheduler:
                 )
                 if parser_trailing_ids is not None:
                     trailing_ids = parser_trailing_ids
+                budget_message = getattr(self, "_thinking_budget_message", None)
+                if budget_message:
+                    message_ids = self._encode_thinking_marker("\n\n" + budget_message)
+                    if message_ids:
+                        leading_ids = message_ids + (leading_ids or [])
                 processor = ThinkingBudgetProcessor(
                     think_end_token_ids=think_end_ids,
                     budget=sampling_params.thinking_budget,
